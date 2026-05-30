@@ -43,15 +43,27 @@ Produkční VPS s původním Drupal 6 webem, ze kterého se data periodicky expo
 - **SSH:** `ssh root@drobnepamatky.cz` (ověřeno funkční přes `ssh root@drobnepamatky.cz whoami`)
 - **Web root:** `/www/drobnepamatky.cz/www` – **POUZE READ-ONLY!** Nikdy zde nic neměnit.
 - **Docker stack:** `/www/docker-compose.yml` – web i DB běží v kontejnerech, řízeno docker-compose
-- **DB:** Drupal 6, DB `gk66` v kontejneru `www_mysql_1`, mapováno na hostu na `127.0.0.1:3306`
+- **DB:** Drupal 6 schéma `gk66` v kontejneru `www_mysql_1` (MySQL **5.5.47**, ~144 tabulek), mapováno na hostu na `127.0.0.1:3306`
 - **DB credentials (zdroj pravdy):** `/www/drobnepamatky.cz/www/sites/default/settings.php` (proměnná `$db_url`)
-- **DB credentials (lokálně cache):** soubor `.env` v rootu projektu (necommitovaný, `chmod 600`, viz `.gitignore`). Klíče: `OLD_DB_HOST`, `OLD_DB_PORT`, `OLD_DB_USER`, `OLD_DB_PASSWORD`, `OLD_DB_NAME`.
-- **Přístup k DB zvenčí:** přes SSH tunel:
+- **DB credentials (lokálně cache):** soubor `.env` v rootu projektu (necommitovaný, `chmod 600`, viz `.gitignore`). Pro bootstrap: `cp .env.example .env && chmod 600 .env` a doplnit hodnoty ze `settings.php`. Klíče: `OLD_DB_HOST`, `OLD_DB_PORT`, `OLD_DB_USER`, `OLD_DB_PASSWORD`, `OLD_DB_NAME`.
+- **Přístup k DB zvenčí:** přes SSH tunel. Pohodlnější je tunel na pozadí (`-f -N`), takže příkazy jdou v jednom shellu:
   ```bash
-  ssh -L 3307:127.0.0.1:3306 root@drobnepamatky.cz
-  # v jiném terminálu lokálně (proměnné z .env):
   set -a; source .env; set +a
-  mysql -h 127.0.0.1 -P "$OLD_DB_PORT" -u "$OLD_DB_USER" -p"$OLD_DB_PASSWORD" "$OLD_DB_NAME"
+  ssh -f -N -L "${OLD_DB_PORT}:127.0.0.1:3306" -o ExitOnForwardFailure=yes root@drobnepamatky.cz
+  mysql --skip-ssl -h "$OLD_DB_HOST" -P "$OLD_DB_PORT" \
+        -u "$OLD_DB_USER" -p"$OLD_DB_PASSWORD" "$OLD_DB_NAME"
+  # po skončení práce zavřít tunel:
+  pkill -f "ssh.*-L ${OLD_DB_PORT}:127.0.0.1:3306.*drobnepamatky.cz"
   ```
+  - `--skip-ssl` je nutné: aktuální MariaDB klient (12.3+) defaultně vynucuje TLS, ale starý MySQL 5.5 ho nepodporuje – jinak končí `ERROR 2026: SSL is required`.
+  - Interaktivní varianta (`ssh -L … root@…` v jednom terminálu, `mysql` ve druhém) funguje taky, jen je upovídanější.
+- **Snapshot / export DB:** `mysqldump` přes stejný tunel (read-only, žádný dopad na produkci):
+  ```bash
+  mysqldump --skip-ssl --single-transaction --quick --no-tablespaces \
+            -h "$OLD_DB_HOST" -P "$OLD_DB_PORT" \
+            -u "$OLD_DB_USER" -p"$OLD_DB_PASSWORD" "$OLD_DB_NAME" \
+    | gzip > "gk66-$(date +%F).sql.gz"
+  ```
+  Výsledné `*.sql.gz` jsou v `.gitignore` (necommitovat – obsahují citlivá data a jsou velké).
 
 > **Pravidlo:** Z původního webu pouze čteme (export dat → GeoJSON do `data/`). Veškeré úpravy obsahu probíhají přes Drupal admin na původním webu, ne odsud.
