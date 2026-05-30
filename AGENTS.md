@@ -35,3 +35,21 @@ Dlouhodobá vize: stát se veřejným frontendem původního webu – data perio
 - Knihovny třetích stran načítat z CDN (s `integrity` + `crossorigin` atributy, jak je to u Leafletu v `index.html`).
 - Velké datové dumpy (`*.sql`, `*.sql.gz`) a `.env` soubory necommitovat – jsou v `.gitignore`.
 - Commit messages: konvenční prefix (`docs:`, `feat:`, `fix:`, `chore:` …) + krátký český popis (viz git log).
+
+## Starý server (zdroj dat)
+
+Produkční VPS s původním Drupal 6 webem, ze kterého se data periodicky exportují sem.
+
+- **SSH:** `ssh root@drobnepamatky.cz` (ověřeno funkční přes `ssh root@drobnepamatky.cz whoami`)
+- **Web root:** `/www/drobnepamatky.cz/www` – **POUZE READ-ONLY!** Nikdy zde nic neměnit.
+- **Docker stack:** `/www/docker-compose.yml` – web i DB běží v kontejnerech, řízeno docker-compose
+- **DB credentials:** `/www/drobnepamatky.cz/www/sites/default/settings.php` (Drupal `$databases` / `$db_url`)
+- **Přístup k DB:** přes SSH tunel, např.:
+  ```bash
+  ssh -L 3307:127.0.0.1:3306 root@drobnepamatky.cz
+  # pak v jiném terminálu lokálně:
+  mysql -h 127.0.0.1 -P 3307 -u <user> -p <db>
+  ```
+  Přesný cílový host/port (lokální vs. docker network) je třeba ověřit v `docker-compose.yml` – pokud DB neposlouchá na `127.0.0.1:3306` hostitele, použít IP nebo název kontejneru jako tunnel target.
+
+> **Pravidlo:** Z původního webu pouze čteme (export dat → GeoJSON do `data/`). Veškeré úpravy obsahu probíhají přes Drupal admin na původním webu, ne odsud.
