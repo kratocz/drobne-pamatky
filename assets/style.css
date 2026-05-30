@@ -1,0 +1,111 @@
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #1f2937;
+    background: #f9fafb;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+}
+
+.app-header {
+    padding: 0.75rem 1.25rem;
+    background: #1f2937;
+    color: #f9fafb;
+    border-bottom: 3px solid #d97706;
+    flex: 0 0 auto;
+}
+
+.app-header h1 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.app-header .subtitle {
+    margin: 0.15rem 0 0;
+    font-size: 0.8rem;
+    color: #d1d5db;
+}
+
+.app-header a {
+    color: #fbbf24;
+    text-decoration: none;
+}
+
+.app-header a:hover {
+    text-decoration: underline;
+}
+
+main {
+    flex: 1 1 auto;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+#map {
+    flex: 1 1 auto;
+    width: 100%;
+    background: #e5e7eb;
+}
+
+.status-bar {
+    padding: 0.4rem 1rem;
+    background: #f3f4f6;
+    border-top: 1px solid #d1d5db;
+    font-size: 0.8rem;
+    color: #4b5563;
+    flex: 0 0 auto;
+}
+
+.status-bar:empty {
+    display: none;
+}
+
+.popup-pamatka {
+    font-size: 0.85rem;
+    line-height: 1.4;
+    max-width: 240px;
+}
+
+.popup-pamatka h3 {
+    margin: 0 0 0.25rem;
+    font-size: 1rem;
+    color: #1f2937;
+}
+
+.popup-pamatka .meta {
+    color: #6b7280;
+    font-size: 0.75rem;
+    margin: 0 0 0.4rem;
+}
+
+.popup-pamatka .description {
+    margin: 0 0 0.5rem;
+}
+
+.popup-pamatka .source-link {
+    display: inline-block;
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: #d97706;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.popup-pamatka .source-link:hover {
+    text-decoration: underline;
+}
+
+.leaflet-popup-content {
+    margin: 0.75rem 1rem;
+}
