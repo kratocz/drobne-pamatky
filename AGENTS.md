@@ -43,13 +43,15 @@ Produkční VPS s původním Drupal 6 webem, ze kterého se data periodicky expo
 - **SSH:** `ssh root@drobnepamatky.cz` (ověřeno funkční přes `ssh root@drobnepamatky.cz whoami`)
 - **Web root:** `/www/drobnepamatky.cz/www` – **POUZE READ-ONLY!** Nikdy zde nic neměnit.
 - **Docker stack:** `/www/docker-compose.yml` – web i DB běží v kontejnerech, řízeno docker-compose
-- **DB credentials:** `/www/drobnepamatky.cz/www/sites/default/settings.php` (Drupal `$databases` / `$db_url`)
-- **Přístup k DB:** přes SSH tunel, např.:
+- **DB:** Drupal 6, DB `gk66` v kontejneru `www_mysql_1`, mapováno na hostu na `127.0.0.1:3306`
+- **DB credentials (zdroj pravdy):** `/www/drobnepamatky.cz/www/sites/default/settings.php` (proměnná `$db_url`)
+- **DB credentials (lokálně cache):** soubor `.env` v rootu projektu (necommitovaný, `chmod 600`, viz `.gitignore`). Klíče: `OLD_DB_HOST`, `OLD_DB_PORT`, `OLD_DB_USER`, `OLD_DB_PASSWORD`, `OLD_DB_NAME`.
+- **Přístup k DB zvenčí:** přes SSH tunel:
   ```bash
   ssh -L 3307:127.0.0.1:3306 root@drobnepamatky.cz
-  # pak v jiném terminálu lokálně:
-  mysql -h 127.0.0.1 -P 3307 -u <user> -p <db>
+  # v jiném terminálu lokálně (proměnné z .env):
+  set -a; source .env; set +a
+  mysql -h 127.0.0.1 -P "$OLD_DB_PORT" -u "$OLD_DB_USER" -p"$OLD_DB_PASSWORD" "$OLD_DB_NAME"
   ```
-  Přesný cílový host/port (lokální vs. docker network) je třeba ověřit v `docker-compose.yml` – pokud DB neposlouchá na `127.0.0.1:3306` hostitele, použít IP nebo název kontejneru jako tunnel target.
 
 > **Pravidlo:** Z původního webu pouze čteme (export dat → GeoJSON do `data/`). Veškeré úpravy obsahu probíhají přes Drupal admin na původním webu, ne odsud.
