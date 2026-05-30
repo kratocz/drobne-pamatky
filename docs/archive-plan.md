@@ -32,7 +32,7 @@ Když zmizí kterákoli z vrstev, ostatní dvě stačí na rekonstrukci celku (p
 |---|:---:|:---:|:---:|
 | Mapa + JS (Leaflet, src/) | ✅ | – | ✅ source |
 | GeoJSON s body památek | ✅ aktuální | ✅ snapshot/verze | ✅ generátor |
-| Náhledy fotek (preset 300, ~300×200, AVIF) | ✅ | – | – |
+| Náhledy fotek (AVIF 250×188 @ q50, ~677 MB pro 125 k) | ✅ | – | – |
 | Zdrojové fotky (JPG, max 1200 px, ~17 GB) | – | ✅ | – |
 | Bonus thumbs bundle (preset 300, ~1.6 GB, volitelné) | – | ⚠️ TBD | – |
 | CSV / XLSX export | ✅ malé, ✅ aktuální | ✅ snapshot/verze | – |
@@ -49,11 +49,25 @@ Když zmizí kterákoli z vrstev, ostatní dvě stačí na rekonstrukci celku (p
 **Obsah:**
 - `index.html`, `src/`, `assets/` – aplikace (jednotky MB)
 - `data/pamatky.geojson` – aktivní snímek metadat (~5–10 MB po minifikaci)
-- `data/thumbs/<rok>/<jméno>.avif` – náhledy fotek (fit do 300×200 boxu, typicky 267×200 nebo 200×267)
+- `data/thumbs/<rok>/<jméno>.avif` – náhledy fotek (max 250 px na delší straně, AVIF q50)
 
-**Cílový rozpočet pro náhledy v repu:** **750 MB** (rezerva 250 MB do 1 GB Pages limitu pro budoucí růst archivu).
+### ✅ Formát náhledů – ROZHODNUTO: AVIF 250 × 188 (4:3) @ q50
 
-**Empirické rozměry × quality** (sample 50 reálných fotek z `files/2024/`, encoder `avifenc -q <Q> --speed 6` / `cwebp -q <Q>`, resize `sips -Z`, extrapolace na 125 k souborů):
+| | Hodnota |
+|---|---|
+| Formát | AVIF (`avifenc --speed 6 -q 50`) |
+| Max delší strana | 250 px |
+| Typický náhled | ~5.5 KB |
+| **Plný archiv (125 152 fotek)** | **~677 MB** |
+| Rezerva do 750 MB target | 73 MB |
+| Rezerva do 1 GB Pages limitu | 347 MB |
+| Použitelná pro budoucí růst | ~5–10 let při stávajícím tempu nahrávání |
+| Browser support | ~94 % (Chrome 85+, FF 93+, Safari 16.4+, Edge 121+) |
+| Fallback pro ~6 % | textový `alt` (název / druh / obec), žádné WebP/JPEG fallback soubory |
+
+**Cílový rozpočet pro náhledy v repu:** 750 MB (rezerva 250 MB do 1 GB Pages limitu pro budoucí růst archivu).
+
+**Empirické rozměry × quality** – data, na základě kterých bylo rozhodnuto (sample 50 reálných fotek z `files/2024/`, encoder `avifenc -q <Q> --speed 6` / `cwebp -q <Q>`, resize `sips -Z`, extrapolace na 125 k souborů):
 
 | Formát | Max strana | Quality | Velikost / 125k | Rezerva | Kompromis |
 |---|---|---|---|---|---|
@@ -67,15 +81,13 @@ Když zmizí kterákoli z vrstev, ostatní dvě stačí na rekonstrukci celku (p
 | **JPEG** ⭐ | **200 px** | **q55** | **674 MB** | **76 MB** | **alternativa s 100% browser podporou bez fallbacku** |
 | JPEG | 200 px | q50 | 631 MB | 119 MB | bezpečná rezerva, znatelně nižší quality |
 
-> **Dvě doporučení podle priority:**
+> **Volba (2026-05-31):** AVIF 250×188 @ q50 byla zvolena pro **největší rozměr (+25 % vs WebP/JPEG)** za stejné místo, s pohodlnou rezervou pro 5–10 let růstu archivu. Cena: ~6 % uživatelů (staré Edge < 121, Opera Mini) uvidí broken image; nahrazeno textovým popisem v `alt` atributu (název památky + druh + obec).
 >
-> 1. **Optimální velikost vs rozměr → AVIF 250×188 @ q50** (676 MB). AVIF dovolí o 25 % větší rozměr za stejné místo. Cena: ~6 % uživatelů (staré Edge / Opera Mini) uvidí broken image bez fallbacku.
->
-> 2. **Maximální kompatibilita → JPEG 200×150 @ q55** (674 MB). Při 200 px je JPEG při srovnatelné percepční kvalitě **téměř stejně velký jako WebP nebo AVIF** (rozdíl < 5 %) – AVIF/WebP encoder overhead se u tak malých obrázků nestihne projevit. 100 % browser support, žádný `<picture>` element, žádný build branching, žádné starosti s legacy browsery.
+> Zvažovaná alternativa **JPEG 200×150 @ q55** (674 MB, 100 % browser support, žádný `<picture>` element) zůstává jako fallback strategie – pokud se v praxi ukáže, že 6 % uživatelů bez AVIF je problém, lze přejít na JPEG bez ztráty v MB.
 
 > **Korekce předchozího odhadu:** v dřívější verzi tohoto dokumentu byl odhad „AVIF preset 300 → 700-900 MB" optimistický. Empiricky: AVIF u rozměrů pod 300 px nepřináší výraznou úsporu vůči JPG (encoder overhead je relativně velký). Realita: preset 300 (300×200 px) v AVIF q60 = ~1.5 GB / 125 k, tedy téměř stejně jako JPG. **Výhoda AVIF se naplno projeví až nad 300 px** (např. 600 px: AVIF q60 ~43 KB vs JPEG q85 ~75 KB).
 
-**Strategie pro ~6 % browserů bez AVIF** (staré Edge < 121, Opera Mini) – pokud zvolíme AVIF: akceptovat broken image + textový popis (název památky, obec, druh) v `alt` atributu. WebP fallback v `<picture>` by ztrojnásobil objem (overhead pro malou skupinu uživatelů, nedoporučuji). Alternativně service worker s on-demand transcode – komplexní, vyhradit pro pozdější fázi. **Pokud zvolíme JPEG, tato sekce odpadá** – kompatibilita je úplná.
+**Strategie pro ~6 % browserů bez AVIF** (staré Edge < 121, Opera Mini): akceptovat broken image + textový popis (název památky, druh, obec) v `alt` atributu. WebP fallback v `<picture>` by ztrojnásobil objem (overhead pro malou skupinu uživatelů, nedoporučuji). Service worker s on-demand transcode – komplexní, vyhradit pro pozdější fázi pokud se ukáže potřeba.
 
 **Zdrojové fotky pro detail view:** link do popupu „**Stáhnout v plné kvalitě** (max 1200 px, Zenodo DOI: …)" → uživatel jde na L2 pro zoom-in a tisk.
 
@@ -214,8 +226,8 @@ Po publikaci L2 snapshotu se v tomto repu:
 |---|---|---|---|
 | 1 | **Licence dat a fotek** – CC-BY-SA / CC-BY / jiná? | autoři drobnepamatky.cz | publikaci jakéhokoli L2 snapshotu |
 | 2 | **Atribuce autorů** – jmenovitě v manifestu / agregovaně / opt-in? | autoři / GDPR review | manifest formát |
-| 3 | **Plný archiv vs. curated primary photo** – uložit všech 125 k fotek (~17 GB) nebo jen 1 hlavní per objekt (~11 GB, ~82 k fotek)? | autoři + technické rozhodnutí | velikost tarů |
-| 4 | **Formát náhledů na L1** – tři reálné varianty: (a) AVIF 250×188 @ q50 (676 MB, +25 % rozměr, nutno řešit ~6 % browserů bez podpory), (b) WebP 200×150 @ q65 (649 MB), (c) **JPEG 200×150 @ q55 (674 MB, 100 % browser support, žádný fallback)**. Pro 200 px jsou všechny formáty velikostně srovnatelné – rozhodnutí je „rozměr 250 vs starost o fallback" vs „univerzální kompatibilita". Data v sekci [L1](#l1--frontend-github-pages). | technické | build pipeline |
+| 3 | ~~Plný archiv vs. curated primary photo~~ → **✅ ROZHODNUTO 2026-05-31: plný archiv všech 125 152 fotek** (na L1 i L2). Důvod: budoucí dokumentační hodnota plné kolekce > úspora místa; L1 thumbnaily i L2 originály se vejdou do limitů. | – | – |
+| 4 | ~~Formát náhledů na L1~~ → **✅ ROZHODNUTO 2026-05-31: AVIF 250×188 @ q50, plný archiv 125 152 fotek, ~677 MB v repu**. Důvod: největší rozměr za rozpočet (+25 % vs WebP/JPEG), 73 MB rezerva do 750 MB target. Fallback pro ~6 % browserů: textový `alt` (název / druh / obec). Detail v sekci [L1](#l1--frontend-github-pages). | – | – |
 | 5 | **Vlastní doména** (`drobnepamatky.cz`) na GH Pages – kdy a kdo přepíše DNS? | autoři | URL stability po migraci |
 | 6 | **Cron pro snímky** – ruční jednou ročně, nebo automatizace v GitHub Actions? | technické | implementace |
 | 7 | **CC0 metadata bonus** – Zenodo doporučuje CC0 pro samotná metadata (manifest, GeoJSON) i když fotky mají přísnější licenci. Souhlas? | autoři | publikace |
