@@ -9,6 +9,10 @@ Cílem je vytvořit dlouhodobě životaschopnou statickou kopii dat z původníh
 > **Zdroj dat:** [drobnepamatky.cz](https://www.drobnepamatky.cz/) – komunitní projekt mapující drobné památky v ČR.
 > Tento repozitář není oficiálním produktem autorů původního webu; jde o nezávislou statickou archivační kopii.
 
+## Dlouhodobá vize
+
+Z tohoto repozitáře se má postupně stát veřejný frontend původního webu – data i mapa staticky na GitHub Pages, na VPS zůstane pouze administrační rozhraní Drupalu, odkud se budou data periodicky exportovat sem. Cíl: oddělit dlouhodobou archivační vrstvu (rychlou, levnou, prakticky nesmrtelnou) od redakčního rozhraní, které lze kdykoli nahradit bez rizika ztráty veřejně dostupných dat.
+
 ## Technologie
 
 - [Leaflet](https://leafletjs.com/) – interaktivní mapa
@@ -45,4 +49,4 @@ Rozjezd – aktuálně funkční mapa s ukázkovými body. Import reálných dat
 
 ## Licence
 
-Data památek pocházejí z [drobnepamatky.cz](https://www.drobnepamatky.cz/) a podléhají licenci tamních autorů. Kód tohoto repozitáře je pod licencí MIT.
+Data památek pocházejí z [drobnepamatky.cz](https://www.drobnepamatky.cz/) a podléhají licenci tamních autorů. Kód tohoto repozitáře je pod licencí MIT – viz [LICENSE](LICENSE).
