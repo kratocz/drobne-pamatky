@@ -51,10 +51,26 @@ Když zmizí kterákoli z vrstev, ostatní dvě stačí na rekonstrukci celku (p
 - `data/pamatky.geojson` – aktivní snímek metadat (~5–10 MB po minifikaci)
 - `data/thumbs/<rok>/<jméno>.avif` – náhledy fotek (fit do 300×200 boxu, typicky 267×200 nebo 200×267)
 
-**Formát náhledů:** **AVIF s `<picture>` fallbackem WebP + JPG.**
-- Zdrojové preset 300 JPG (~12 KB / náhled) → AVIF ~700–900 MB pro 125 k souborů (limit 1 GB → vejde se)
-- Fallback WebP přidaný jen pro stará Edge < 121 + Opera Mini (~1 % uživatelů) by celkový objem ztrojnásobil → **nedělat fallback v souborech**, místo toho pro browser bez AVIF servovat 1 dynamicky transcoded fallback přes service worker, nebo akceptovat broken image pro ~1 % a doplnit textový popis.
-- Zdrojové fotky pro detail view: link do popupu „**Stáhnout v plné kvalitě** (max 1200 px, Zenodo DOI: …)" → uživatel jde na L2 pro zoom-in a tisk.
+**Cílový rozpočet pro náhledy v repu:** **750 MB** (rezerva 250 MB do 1 GB Pages limitu pro budoucí růst archivu).
+
+**Empirické rozměry × quality** (sample 50 reálných fotek z `files/2024/`, encoder `avifenc -q <Q> --speed 6` / `cwebp -q <Q>`, resize `sips -Z`, extrapolace na 125 k souborů):
+
+| Formát | Max strana | Quality | Velikost / 125k | Rezerva | Kompromis |
+|---|---|---|---|---|---|
+| AVIF | 200 px | q60 | 697 MB | 53 MB | dobrá web quality, malý rozměr |
+| **AVIF** ⭐ | **250 px** | **q50** | **676 MB** | **74 MB** | **sweet spot – +25 % rozměr za mírné quality** |
+| AVIF | 300 px | q40 | 667 MB | 83 MB | rozměr jako preset 300, viditelně nižší kvalita |
+| WebP | 200 px | q75 | 731 MB | 19 MB | těsně, default web quality |
+| WebP | 200 px | q65 | 649 MB | 101 MB | bezpečná rezerva, mírně horší kvalita |
+| WebP | 250 px | q45 | 688 MB | 62 MB | větší rozměr, hodně horší kvalita |
+
+> **Doporučení: AVIF, 250×188 (4:3) max @ q50.** Pro stejných ~675 MB by WebP dovolil jen 200×150 – **AVIF dává ~25 % větší rozměr při srovnatelné percepční kvalitě**, což odpovídá obecně udávané 30 % převaze AVIF nad WebP v compression efficiency.
+
+> **Korekce předchozího odhadu:** v dřívější verzi tohoto dokumentu byl odhad „AVIF preset 300 → 700-900 MB" optimistický. Empiricky: AVIF u rozměrů pod 300 px nepřináší výraznou úsporu vůči JPG (encoder overhead je relativně velký). Realita: preset 300 (300×200 px) v AVIF q60 = ~1.5 GB / 125 k, tedy téměř stejně jako JPG.
+
+**Strategie pro ~6 % browserů bez AVIF** (staré Edge < 121, Opera Mini): akceptovat broken image + textový popis (název památky, obec, druh) v `alt` atributu. WebP fallback v `<picture>` by ztrojnásobil objem (overhead pro malou skupinu uživatelů, nedoporučuji). Alternativně service worker s on-demand transcode – komplexní, vyhradit pro pozdější fázi.
+
+**Zdrojové fotky pro detail view:** link do popupu „**Stáhnout v plné kvalitě** (max 1200 px, Zenodo DOI: …)" → uživatel jde na L2 pro zoom-in a tisk.
 
 **Vlastní doména:** v plánu napojit `drobnepamatky.cz/` na GH Pages (po dohodě s autory původního webu), aby URL přežilo migrace mezi hostery.
 
@@ -192,7 +208,7 @@ Po publikaci L2 snapshotu se v tomto repu:
 | 1 | **Licence dat a fotek** – CC-BY-SA / CC-BY / jiná? | autoři drobnepamatky.cz | publikaci jakéhokoli L2 snapshotu |
 | 2 | **Atribuce autorů** – jmenovitě v manifestu / agregovaně / opt-in? | autoři / GDPR review | manifest formát |
 | 3 | **Plný archiv vs. curated primary photo** – uložit všech 125 k fotek (~17 GB) nebo jen 1 hlavní per objekt (~11 GB, ~82 k fotek)? | autoři + technické rozhodnutí | velikost tarů |
-| 4 | **AVIF vs WebP** pro náhledy na L1 – AVIF (700–900 MB) nebo WebP (1.0–1.2 GB)? | technické | build pipeline |
+| 4 | **AVIF vs WebP** pro náhledy na L1 – AVIF 250×188 @ q50 (676 MB, doporučeno) nebo WebP 200×150 @ q65 (649 MB)? Empirická data v sekci [L1](#l1--frontend-github-pages). | technické | build pipeline |
 | 5 | **Vlastní doména** (`drobnepamatky.cz`) na GH Pages – kdy a kdo přepíše DNS? | autoři | URL stability po migraci |
 | 6 | **Cron pro snímky** – ruční jednou ročně, nebo automatizace v GitHub Actions? | technické | implementace |
 | 7 | **CC0 metadata bonus** – Zenodo doporučuje CC0 pro samotná metadata (manifest, GeoJSON) i když fotky mají přísnější licenci. Souhlas? | autoři | publikace |
