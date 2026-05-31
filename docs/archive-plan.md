@@ -31,7 +31,7 @@ Když zmizí kterákoli z vrstev, ostatní dvě stačí na rekonstrukci celku (p
 | Artefakt | L1 GH Pages | L2 Zenodo | L3 GitHub repo |
 |---|:---:|:---:|:---:|
 | Mapa + JS (Leaflet, src/) | ✅ | – | ✅ source |
-| GeoJSON s body památek | ✅ aktuální | ✅ snapshot/verze | ✅ generátor |
+| GeoJSON master + per-památka detail JSONy + lookups + search index | ✅ aktuální | ✅ master snapshot | ✅ generátor |
 | Náhledy fotek (AVIF 250×188 @ q50, ~677 MB pro 125 k) | ✅ | – | – |
 | Zdrojové fotky (JPG, max 1200 px, ~17 GB) | – | ✅ | – |
 | Bonus thumbs bundle (preset 300, ~1.6 GB, volitelné) | – | ⚠️ TBD | – |
@@ -48,8 +48,50 @@ Když zmizí kterákoli z vrstev, ostatní dvě stačí na rekonstrukci celku (p
 
 **Obsah:**
 - `index.html`, `src/`, `assets/` – aplikace (jednotky MB)
-- `data/pamatky.geojson` – aktivní snímek metadat (~5–10 MB po minifikaci)
+- `data/pamatky.geojson` – master GeoJSON s body památek (~5 MB gzip, viz [Data delivery](#l1--data-delivery))
+- `data/details/<nid>.json` – lazy-loaded detail per památka (82 k souborů, ~2-3 KB each)
+- `data/lookups.json` – ID → name pro druhy a obce (~200 KB gzip)
+- `data/search-index.json` – pre-built search index (~2 MB gzip)
 - `data/thumbs/<rok>/<jméno>.avif` – náhledy fotek (max 250 px na delší straně, AVIF q50)
+
+### L1 – Data delivery
+
+**Problém:** 71 MB DB dump je pro klienta neudržitelně velký – cca 1 400 unikátních návštěvníků by za měsíc vyčerpalo 100 GB GH Pages bandwidth limit. Plus obsahuje hesla a další citlivá data, která nepatří na frontend. Řešení: **frontend nikdy nedostane DB dump**, dostane sadu předgenerovaných JSONů.
+
+**Strategie – hybridní 4 vrstvy** (initial load ~5–8 MB gzip):
+
+| # | Soubor | Velikost (gzip) | Kdy se loaduje | Co obsahuje |
+|---|---|---|---|---|
+| 1 | `data/pamatky.geojson` | **~3-5 MB** | při startu mapy | 82 k features: GPS + `n` (název) + `d` (druh ID) + `o` (obec ID) + `i` (nid) + `t` (thumb URL) |
+| 2 | `data/lookups.json` | ~200 KB | při startu | mapping `druh_id → název` (31 řádků) + `obec_id → název` (19 445 řádků) |
+| 3 | `data/search-index.json` | ~1-3 MB | při startu (volitelně lazy po prvním searchi) | pre-built MiniSearch / FlexSearch index nad názvy + popisy |
+| 4 | `data/details/<nid>.json` | ~2-3 KB / soubor | **on-demand** při kliknutí na marker | popis, autor, datum, manifest fotek, komentáře, plné taxonomy |
+
+> **Krátké property names v `pamatky.geojson`** (`n`, `d`, `o`, `i`, `t` místo `name`, `druh`, …) ušetří přes 82 k features ~1-2 MB raw. Klient si mappuje zpět při zobrazení.
+
+**Bandwidth matematika** (100 GB/měsíc soft limit):
+
+| Scénář | Payload | Návštěvníků / měsíc |
+|---|---|---|
+| First visit (master + lookup + search index) | ~7 MB | ~14 000 unikátních |
+| First visit + 5× klik na detail | ~7.05 MB | ~14 000 |
+| Return visit (vše z cache přes Service Worker) | ~0 MB | neomezeně |
+
+→ S aggresivním cachingem a podílem return visitors **20–50 k unique návštěvníků / měsíc** bez problémů.
+
+**Search:** klient-side přes [MiniSearch](https://github.com/lucaong/minisearch) nebo [FlexSearch](https://github.com/nextapps-de/flexsearch). Pre-built index v `search-index.json` obsahuje **název + druh + obec + první věta popisu** – pokrývá 80 % typických queries („kapličky u Strakonic", „kříže v okrese Plzeň-jih"). Hluboký full-text přes celý popis by vyžadoval ~10 MB index – necháme na později pokud bude potřeba.
+
+**Service Worker** (PWA pattern) cacheuje agresivně:
+- `pamatky.geojson` + `lookups.json` + `search-index.json` na 24 h (stale-while-revalidate)
+- `details/<nid>.json` forever (immutable + versioning přes hash v názvu nebo query param `?v=YYYY-MM-DD`)
+- `thumbs/**/*.avif` forever (po vygenerování se nemění do dalšího ročního snapshotu)
+
+**Škálovací plán B – Cloudflare před GH Pages** (free tier, unlimited bandwidth):
+- Vlastní doména na CF jako proxy před GH Pages
+- CF cache na `*.geojson`, `*.avif`, `*.json` agresivně
+- GH Pages bandwidth se počítá jen za **origin** requesty, ne za to, co CF servíruje z cache
+- Bonus: brotli komprese (~20 % menší než gzip)
+- → Efektivně neomezený bandwidth pro veřejný traffic, GH Pages zůstává jen origin storage
 
 ### ✅ Formát náhledů – ROZHODNUTO: AVIF 250 × 188 (4:3) @ q50
 
