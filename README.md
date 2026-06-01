@@ -53,6 +53,6 @@ Data památek pocházejí z [drobnepamatky.cz](https://www.drobnepamatky.cz/) a 
 
 ## Autor archivační větve
 
-**Petr Krato** · [krato.cz](https://krato.cz) · [krato@krato.cz](mailto:krato@krato.cz)
+**Petr Kratochvíl** · [krato.cz](https://krato.cz) · [krato@krato.cz](mailto:krato@krato.cz)
 
 Tento repozitář je nezávislá archivační iniciativa – není oficiálním produktem autorů původního webu drobnepamatky.cz, kteří jsou tvůrci samotných dat a fotografií.
