@@ -18,6 +18,7 @@ on:
     branches: [main]
     paths:
       - 'index.html'
+      - '404.html'
       - 'src/**'
       - 'assets/**'
       - 'LICENSE'
@@ -54,6 +55,7 @@ jobs:
         run: |
           set -euo pipefail
           cp main/index.html pages/
+          cp main/404.html pages/
           cp main/LICENSE pages/
           rsync -a --delete main/src/ pages/src/
           rsync -a --delete main/assets/ pages/assets/

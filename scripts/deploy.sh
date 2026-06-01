@@ -29,6 +29,7 @@ echo "─── pre-flight kontroly ───"
 
 NEEDED_FILES=(
     "index.html"
+    "404.html"
     "src/app.js"
     "assets/style.css"
     "data/pamatky.geojson"
@@ -114,6 +115,7 @@ rsync -a "$REPO_ROOT/src/" src/
 rsync -a "$REPO_ROOT/assets/" assets/
 rsync -a "$REPO_ROOT/data/" data/
 cp "$REPO_ROOT/index.html" .
+cp "$REPO_ROOT/404.html" .
 cp "$REPO_ROOT/LICENSE" .
 
 # Deploy-specific .gitignore (jen macOS junk – data jsou jasně chtěná)

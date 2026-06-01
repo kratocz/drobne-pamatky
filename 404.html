@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drobné památky – přesměrování</title>
+    <script>
+        (function () {
+            'use strict';
+
+            const projectBase = '/drobne-pamatky/';
+            const isProjectPath = window.location.pathname.startsWith(projectBase);
+            const basePath = isProjectPath ? projectBase : '/';
+            const routePath = isProjectPath
+                ? `/${window.location.pathname.slice(projectBase.length)}`
+                : window.location.pathname;
+            const target = new URL(basePath, window.location.origin);
+
+            target.searchParams.set('p', `${routePath}${window.location.search}${window.location.hash}`);
+            window.location.replace(target.href);
+        }());
+    </script>
+</head>
+<body>
+    <p>Přesměrovávám na mapu drobných památek…</p>
+</body>
+</html>

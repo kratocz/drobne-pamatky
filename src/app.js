@@ -3,15 +3,29 @@
 
     const CZ_CENTER = [49.8, 15.5];
     const CZ_ZOOM = 7;
-    const MASTER_URL = 'data/pamatky.geojson';
-    const LOOKUPS_URL = 'data/lookups.json';
-    const SEARCH_INDEX_URL = 'data/search-index.json';
-    const BUCKET_URL = (krajTid) => `data/details/${krajTid}.json`;
+
+    const APP_BASE_URL = (() => {
+        const scriptUrl = new URL(document.currentScript?.src || 'src/app.js', window.location.href);
+        scriptUrl.pathname = scriptUrl.pathname.replace(/src\/app\.js$/, '');
+        scriptUrl.search = '';
+        scriptUrl.hash = '';
+        return scriptUrl;
+    })();
+    const APP_BASE_PATH = APP_BASE_URL.pathname.endsWith('/') ? APP_BASE_URL.pathname : `${APP_BASE_URL.pathname}/`;
+    const appUrl = (path) => new URL(path, APP_BASE_URL).href;
+
+    const MASTER_URL = appUrl('data/pamatky.geojson');
+    const LOOKUPS_URL = appUrl('data/lookups.json');
+    const SEARCH_INDEX_URL = appUrl('data/search-index.json');
+    const BUCKET_URL = (krajTid) => appUrl(`data/details/${krajTid}.json`);
     const THUMB_URL = (filepath) => {
         const m = filepath.match(/^files\/(\d{4})\/(.+)\.jpg$/i);
-        return m ? `data/thumbs/${m[1]}/${m[2]}.avif` : null;
+        return m ? appUrl(`data/thumbs/${m[1]}/${m[2]}.avif`) : null;
     };
     const ORIG_URL = (nid) => `https://www.drobnepamatky.cz/node/${nid}`;
+
+    const ROUTE_QUERY_PARAM = 'p';
+    const PAMATKA_ROUTE_RE = /^\/pamatka\/(\d+)(?:-[^/]*)?\/?$/;
 
     const SEARCH_MIN_CHARS = 2;
     const SEARCH_MAX_RESULTS = 12;
@@ -66,6 +80,9 @@
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+
+    const stripDiacritics = (s) =>
+        String(s ?? '').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
 
     const map = L.map('map', {
         center: CZ_CENTER,
@@ -143,6 +160,79 @@
     const markersByNid = new Map();
     // Master feature properties (nid → {n, d, lat, lon}) – pro search results display
     const propsByNid = new Map();
+    let activeNid = null;
+    let routeCloseTimer = null;
+    let dataReady = false;
+
+    const normalizeRoutePath = (value) => {
+        const rawPath = String(value || '/').split(/[?#]/)[0];
+        let path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+        if (APP_BASE_PATH !== '/' && path.startsWith(APP_BASE_PATH)) {
+            path = `/${path.slice(APP_BASE_PATH.length)}`;
+        }
+        return path.replace(/\/{2,}/g, '/') || '/';
+    };
+
+    const routeNidFromPath = (path) => {
+        const match = normalizeRoutePath(path).match(PAMATKA_ROUTE_RE);
+        return match ? Number(match[1]) : null;
+    };
+
+    const currentRouteNid = () => {
+        const url = new URL(window.location.href);
+        const redirectedPath = url.searchParams.get(ROUTE_QUERY_PARAM);
+        return routeNidFromPath(redirectedPath || url.pathname);
+    };
+
+    const slugify = (value) => stripDiacritics(value)
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 80)
+        .replace(/-+$/g, '');
+
+    const pamatkaPath = (nid) => {
+        const props = propsByNid.get(Number(nid));
+        const slug = slugify(props?.n);
+        return `${APP_BASE_PATH}pamatka/${Number(nid)}${slug ? `-${slug}` : ''}`;
+    };
+
+    const setHistoryPath = (path, state, replace = false) => {
+        if (!window.history?.pushState) return;
+        if (window.location.pathname === path && !window.location.search && !window.location.hash) return;
+        window.history[replace ? 'replaceState' : 'pushState'](state, '', path);
+    };
+
+    const setPamatkaRoute = (nid, { replace = false } = {}) => {
+        const normalizedNid = Number(nid);
+        setHistoryPath(pamatkaPath(normalizedNid), { pamatkaNid: normalizedNid }, replace);
+    };
+
+    const setMapRoute = ({ replace = false } = {}) => {
+        if (!currentRouteNid() && !new URL(window.location.href).searchParams.has(ROUTE_QUERY_PARAM)) return;
+        setHistoryPath(APP_BASE_PATH, { pamatkaNid: null }, replace);
+    };
+
+    const updateDocumentTitle = (nid) => {
+        const name = nid ? propsByNid.get(Number(nid))?.n : null;
+        document.title = name ? `${name} – Drobné památky` : 'Drobné památky – mapa';
+    };
+
+    const clearRouteCloseTimer = () => {
+        if (!routeCloseTimer) return;
+        clearTimeout(routeCloseTimer);
+        routeCloseTimer = null;
+    };
+
+    const scheduleMapRouteAfterPopupClose = () => {
+        clearRouteCloseTimer();
+        routeCloseTimer = setTimeout(() => {
+            routeCloseTimer = null;
+            if (activeNid === null) {
+                updateDocumentTitle(null);
+                setMapRoute();
+            }
+        }, 0);
+    };
 
     const buildMistoCesta = (mistoTermy) => {
         // Z misto_termy (pole tids) postavit hierarchii: ku → obec → okres → kraj.
@@ -259,10 +349,20 @@
                 lyr.bindTooltip(props.n || '?', { direction: 'top', offset: [0, -10] });
                 lyr.bindPopup(buildPopupHtml(props, null), { minWidth: 240, maxWidth: 320 });
                 lyr.on('popupopen', async (e) => {
+                    clearRouteCloseTimer();
+                    activeNid = props.i;
+                    updateDocumentTitle(props.i);
+                    setPamatkaRoute(props.i);
+
                     const detail = await loadDetail(props.i, props.k);
                     if (detail) {
                         e.popup.setContent(buildPopupHtml(props, detail));
                     }
+                });
+                lyr.on('popupclose', () => {
+                    if (activeNid !== props.i) return;
+                    activeNid = null;
+                    scheduleMapRouteAfterPopupClose();
                 });
             },
         });
@@ -273,7 +373,11 @@
         const mistaCount = Object.keys(lookups.misto).length;
         setStatus(`${count.toLocaleString('cs-CZ')} památek · ${druhyCount} druhů · ${mistaCount.toLocaleString('cs-CZ')} správních jednotek. Zdroj: drobnepamatky.cz`);
 
+        dataReady = true;
         initSearch();
+        if (!openRouteFromLocation({ replaceUrl: true }) && !currentRouteNid()) {
+            setMapRoute({ replace: true });
+        }
     }).catch((err) => {
         console.error('Chyba načítání:', err);
         setStatus(`Nelze načíst data: ${err}`);
@@ -299,11 +403,6 @@
         resultsEl.innerHTML = '';
         focusedIdx = -1;
     };
-
-    // MUSÍ být identický s processTerm v build_search_index.js – jinak query
-    // tokenizované jinak než indexované termy a nic se nenajde.
-    const stripDiacritics = (s) =>
-        s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
 
     const loadSearchIndex = () => {
         if (miniSearch) return Promise.resolve(miniSearch);
@@ -362,9 +461,18 @@
         focusedIdx = -1;
     };
 
-    const goToMarker = (nid) => {
-        const marker = markersByNid.get(Number(nid));
-        if (!marker) return;
+    const goToMarker = (nid, { updateUrl = true, replaceUrl = false } = {}) => {
+        const normalizedNid = Number(nid);
+        const marker = markersByNid.get(normalizedNid);
+        if (!marker) return false;
+
+        clearRouteCloseTimer();
+        activeNid = normalizedNid;
+        updateDocumentTitle(normalizedNid);
+        if (updateUrl) {
+            setPamatkaRoute(normalizedNid, { replace: replaceUrl });
+        }
+
         const latlng = marker.getLatLng();
         // Pokud je v clusteru, otevři přes parent group
         if (cluster.hasLayer(marker)) {
@@ -372,10 +480,36 @@
                 marker.openPopup();
             });
         } else {
-            map.flyTo(latlng, Math.max(map.getZoom(), 14), { duration: 0.6 });
+            map.flyTo(latlng, Math.max(map.getZoom(), 16), { duration: 0.6 });
             marker.openPopup();
         }
+        return true;
     };
+
+    const openRouteFromLocation = ({ replaceUrl = false } = {}) => {
+        const nid = currentRouteNid();
+        if (!nid) return false;
+
+        const opened = goToMarker(nid, { updateUrl: true, replaceUrl });
+        if (!opened) {
+            setStatus(`Památka ${nid} nebyla v datech nalezena.`);
+        }
+        return opened;
+    };
+
+    window.addEventListener('popstate', () => {
+        if (!dataReady) return;
+
+        const nid = currentRouteNid();
+        if (nid) {
+            goToMarker(nid, { updateUrl: false });
+            return;
+        }
+
+        activeNid = null;
+        updateDocumentTitle(null);
+        map.closePopup();
+    });
 
     // Pre-warm bucket pro Středočeský kraj (nejvíc památek + první view obvykle pokrývá ČR)
     // – tichá optimalizace, na first popup je už cache hot.
