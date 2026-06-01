@@ -175,6 +175,31 @@ main {
     text-decoration: underline;
 }
 
+/* ===== Marker ikony per kategorie druhu ===== */
+.dp-marker-wrapper {
+    background: transparent !important;
+    border: none !important;
+}
+
+.dp-marker {
+    width: 28px;
+    height: 28px;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    border: 2px solid #ffffff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.dp-marker svg {
+    width: 14px;
+    height: 14px;
+    fill: #ffffff;
+    transform: rotate(45deg);
+}
+
 .popup-pamatka {
     font-size: 0.85rem;
     line-height: 1.4;

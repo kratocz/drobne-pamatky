@@ -17,6 +17,46 @@
     const SEARCH_MAX_RESULTS = 12;
     const SEARCH_DEBOUNCE_MS = 200;
 
+    // ===== Marker ikony per kategorie druhu =====
+    // 5 vizuálně odlišených kategorií + default. Mapping z 31 druhů (term_data vid=5).
+    const KATEGORIE = {
+        kriz:     { color: '#b91c1c', label: 'Kříže',           svg: 'M10 3h4v6h6v4h-6v8h-4v-8H4V9h6z' },
+        bozimuka: { color: '#c2410c', label: 'Boží muka, sloupy', svg: 'M11 2h2v3l2 1v2l-2 1v13h-2V9L9 8V6l2-1z' },
+        kaple:    { color: '#7c3aed', label: 'Kaple, zvoničky',  svg: 'M12 2L3 10v12h6v-7h6v7h6V10z' },
+        socha:    { color: '#0e7490', label: 'Sochy, pomníky',   svg: 'M12 2a2.5 2.5 0 0 0 0 5 2.5 2.5 0 0 0 0-5zM9 9v8h2v5h2v-5h2V9z' },
+        kamen:    { color: '#65a30d', label: 'Kameny',           svg: 'M5 17c0-5 3.5-9 7-9s7 4 7 9c0 1-.5 2-1.5 2H6.5C5.5 19 5 18 5 17z' },
+        default:  { color: '#6b7280', label: 'Ostatní',          svg: 'M12 5a4 4 0 0 0-4 4c0 3 4 8 4 8s4-5 4-8a4 4 0 0 0-4-4z' },
+    };
+    const DRUH_TO_KATEGORIE = {
+        19413: 'kriz',     19407: 'kriz',     19417: 'kriz',                       // Kříž, Křížový k., Smírčí kříž
+        19420: 'bozimuka', 19416: 'bozimuka',                                       // Boží muka, Sloup
+        19405: 'kaple',    19406: 'kaple',    19483: 'kaple', 19419: 'kaple',      // Kaple, Kaplička, Zvonice, Zvonička
+        19418: 'socha',    19414: 'socha',    19415: 'socha', 19411: 'socha',
+        19427: 'socha',    19487: 'socha',    19482: 'socha', 19485: 'socha',      // Socha, Pomník, Pomník padlým, Památník, Plastika, Reliéf, Pamětní deska, Krajinné umění
+        19404: 'kamen',    19412: 'kamen',    19409: 'kamen', 19488: 'kamen',      // Hraniční k., Památný k., Menhir, Památná dlažba
+        // ostatní druhy (Altán, Dopravní p., Hodiny, Kašna, Něco jiného, Obrázek,
+        // Technická p., Nenalezena, Nevybráno, Neznámý) → default
+    };
+
+    const iconCache = new Map();  // kategorie key → L.DivIcon (recycled per kat)
+    const buildIcon = (druhTid) => {
+        const kat = DRUH_TO_KATEGORIE[druhTid] || 'default';
+        if (iconCache.has(kat)) return iconCache.get(kat);
+        const cfg = KATEGORIE[kat];
+        const html = `<div class="dp-marker" style="background:${cfg.color}">
+            <svg viewBox="0 0 24 24"><path d="${cfg.svg}"/></svg></div>`;
+        const icon = L.divIcon({
+            html,
+            className: 'dp-marker-wrapper',
+            iconSize: [28, 28],
+            iconAnchor: [14, 28],
+            popupAnchor: [0, -28],
+            tooltipAnchor: [0, -28],
+        });
+        iconCache.set(kat, icon);
+        return icon;
+    };
+
     const statusEl = document.getElementById('status');
     const setStatus = (msg) => { statusEl.textContent = msg; };
 
@@ -177,8 +217,8 @@
 
         const layer = L.geoJSON(geo, {
             pointToLayer: (feature, latlng) => {
-                const marker = L.marker(latlng);
                 const props = feature.properties || {};
+                const marker = L.marker(latlng, { icon: buildIcon(props.d) });
                 markersByNid.set(props.i, marker);
                 propsByNid.set(props.i, {
                     n: props.n, d: props.d,
