@@ -56,8 +56,10 @@
 
     const cluster = L.markerClusterGroup({
         showCoverageOnHover: false,
-        maxClusterRadius: 60,
-        disableClusteringAtZoom: 16,
+        // Méně agresivní clustering: na vyšších zoom levelech (krajský pohled
+        // a hloub) chceme vidět rychle jednotlivé památky, ne sumy.
+        maxClusterRadius: 40,
+        disableClusteringAtZoom: 13,
         chunkedLoading: true,
     });
     map.addLayer(cluster);
@@ -230,6 +232,11 @@
         focusedIdx = -1;
     };
 
+    // MUSÍ být identický s processTerm v build_search_index.js – jinak query
+    // tokenizované jinak než indexované termy a nic se nenajde.
+    const stripDiacritics = (s) =>
+        s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+
     const loadSearchIndex = () => {
         if (miniSearch) return Promise.resolve(miniSearch);
         if (miniSearchLoading) return miniSearchLoading;
@@ -238,7 +245,13 @@
             .then(text => {
                 const opts = {
                     fields: ['n', 'd', 'm'],
-                    searchOptions: { boost: { n: 2, m: 1.5 }, fuzzy: 0.2, prefix: true },
+                    processTerm: stripDiacritics,
+                    searchOptions: {
+                        boost: { n: 2, m: 1.5 },
+                        fuzzy: 0.2,
+                        prefix: true,
+                        processTerm: stripDiacritics,
+                    },
                 };
                 miniSearch = window.MiniSearch.loadJSON(text, opts);
                 return miniSearch;
@@ -248,6 +261,19 @@
                 throw err;
             });
         return miniSearchLoading;
+    };
+
+    // ===== Highlight markerů na mapě podle search =====
+
+    // Nastavit opacity všech markerů podle Set nidů (null = reset všech na 1)
+    const applyMarkerFilter = (highlightedNids) => {
+        if (highlightedNids === null) {
+            markersByNid.forEach(m => m.setOpacity(1));
+            return;
+        }
+        markersByNid.forEach((marker, nid) => {
+            marker.setOpacity(highlightedNids.has(nid) ? 1 : 0.15);
+        });
     };
 
     const renderResults = (hits) => {
@@ -291,6 +317,8 @@
         if (!miniSearch) return;
         const hits = miniSearch.search(q);
         renderResults(hits);
+        // Highlight matching markerů na mapě (zešediv ostatní)
+        applyMarkerFilter(new Set(hits.map(h => h.id)));
     };
 
     let debounceTimer = null;
@@ -299,6 +327,7 @@
         clearTimeout(debounceTimer);
         if (q.length < SEARCH_MIN_CHARS) {
             hideResults();
+            applyMarkerFilter(null);  // reset highlightu
             return;
         }
         if (q === lastQuery) return;
@@ -326,7 +355,14 @@
 
     inputEl.addEventListener('keydown', (e) => {
         const items = resultsEl.querySelectorAll('.search-result');
-        if (e.key === 'Escape') { hideResults(); inputEl.blur(); return; }
+        if (e.key === 'Escape') {
+            hideResults();
+            inputEl.value = '';
+            lastQuery = '';
+            applyMarkerFilter(null);
+            inputEl.blur();
+            return;
+        }
         if (!items.length) return;
         if (e.key === 'ArrowDown') {
             e.preventDefault();

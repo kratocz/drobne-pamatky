@@ -27,9 +27,17 @@ console.log(`Načítám ${SEARCH_DATA} …`);
 const docs = JSON.parse(readFileSync(SEARCH_DATA, "utf-8"));
 console.log(`  → ${docs.length} dokumentů`);
 
+// processTerm: lowercase + strip diakritiky (NFD normalize + remove combining marks).
+// Aplikuje se PŘI INDEXOVÁNÍ i PŘI SEARCH – garantuje, že 'kriz' najde 'Kříž',
+// 'plzen' najde 'Plzeň' atd. Klient v app.js MUSÍ použít identický processor
+// (jinak se index a query nesetkají).
+const stripDiacritics = (s) =>
+  s.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
+
 const miniSearch = new MiniSearch({
   idField: "i",
   fields: ["n", "d", "m"],         // hledat v: název, druh, místo
+  processTerm: stripDiacritics,
   // storeFields záměrně PRÁZDNÉ – search vrátí jen IDs (nid),
   // klient si dohledá název/druh/místo v master + lookups (už jsou v paměti).
   // Snižuje velikost indexu cca o 30 %.
@@ -37,6 +45,7 @@ const miniSearch = new MiniSearch({
     boost: { n: 2, m: 1.5 },       // název hlavní, místo střední, druh stejný
     fuzzy: 0.2,
     prefix: true,
+    processTerm: stripDiacritics,
   },
 });
 
