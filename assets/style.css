@@ -153,6 +153,28 @@ main {
     display: none;
 }
 
+.app-footer {
+    padding: 0.5rem 1rem;
+    background: #1f2937;
+    color: #d1d5db;
+    font-size: 0.75rem;
+    border-top: 1px solid #111827;
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+}
+
+.app-footer a {
+    color: #fbbf24;
+    text-decoration: none;
+}
+
+.app-footer a:hover {
+    text-decoration: underline;
+}
+
 .popup-pamatka {
     font-size: 0.85rem;
     line-height: 1.4;

@@ -50,3 +50,9 @@ Rozjezd – aktuálně funkční mapa s ukázkovými body. Import reálných dat
 ## Licence
 
 Data památek pocházejí z [drobnepamatky.cz](https://www.drobnepamatky.cz/) a podléhají licenci tamních autorů. Kód tohoto repozitáře je pod licencí MIT – viz [LICENSE](LICENSE).
+
+## Autor archivační větve
+
+**Petr Krato** · [krato.cz](https://krato.cz) · [krato@krato.cz](mailto:krato@krato.cz)
+
+Tento repozitář je nezávislá archivační iniciativa – není oficiálním produktem autorů původního webu drobnepamatky.cz, kteří jsou tvůrci samotných dat a fotografií.
