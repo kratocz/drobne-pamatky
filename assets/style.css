@@ -281,6 +281,33 @@ main {
     }
 }
 
+/* ===== Toast notification ===== */
+.toast {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translate(-50%, -10px);
+    background: #fef3c7;
+    color: #78350f;
+    border: 1px solid #fbbf24;
+    padding: 0.55rem 1.1rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+    z-index: 10000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    max-width: 90%;
+}
+
+.toast.visible {
+    opacity: 1;
+    transform: translate(-50%, 0);
+    pointer-events: auto;
+}
+
 .popup-pamatka {
     font-size: 0.85rem;
     line-height: 1.4;

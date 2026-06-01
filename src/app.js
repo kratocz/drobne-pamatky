@@ -74,6 +74,19 @@
     const statusEl = document.getElementById('status');
     const setStatus = (msg) => { statusEl.textContent = msg; };
 
+    // Nenápadný toast pruh nahoře – auto-fade po několika sekundách.
+    const toastEl = document.getElementById('toast');
+    let toastTimer = null;
+    const showToast = (message, durationMs = 4500) => {
+        toastEl.textContent = message;
+        toastEl.classList.add('visible');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => {
+            toastEl.classList.remove('visible');
+            toastTimer = null;
+        }, durationMs);
+    };
+
     const escapeHtml = (str) => String(str ?? '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -492,7 +505,10 @@
 
         const opened = goToMarker(nid, { updateUrl: true, replaceUrl });
         if (!opened) {
-            setStatus(`Památka ${nid} nebyla v datech nalezena.`);
+            showToast(`Památka č. ${nid} v archivu není – zobrazuji mapu.`);
+            // Reset URL na mapu (jinak by reload znova spadl do stejné chyby)
+            setMapRoute({ replace: true });
+            updateDocumentTitle(null);
         }
         return opened;
     };
