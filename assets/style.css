@@ -200,6 +200,87 @@ main {
     transform: rotate(45deg);
 }
 
+/* ===== Legenda kategorií ===== */
+.dp-legend {
+    background: #ffffff;
+    border-radius: 6px !important;
+    padding: 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    font-size: 0.75rem;
+    color: #1f2937;
+    max-width: 220px;
+    overflow: hidden;
+}
+
+.dp-legend .legend-toggle {
+    width: 100%;
+    border: none;
+    background: #1f2937;
+    color: #f9fafb;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.dp-legend .legend-toggle::after {
+    content: '−';
+    margin-left: 0.5rem;
+    font-weight: 700;
+}
+
+.dp-legend.collapsed .legend-toggle::after {
+    content: '+';
+}
+
+.dp-legend .legend-body {
+    padding: 0.5rem 0.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.dp-legend.collapsed .legend-body {
+    display: none;
+}
+
+.dp-legend .legend-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.dp-legend .legend-pin {
+    width: 18px;
+    height: 18px;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    border: 1.5px solid #ffffff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.dp-legend .legend-pin svg {
+    width: 10px;
+    height: 10px;
+    fill: #ffffff;
+    transform: rotate(45deg);
+}
+
+/* Na malé obrazovky default collapsed (mobile) */
+@media (max-width: 600px) {
+    .dp-legend {
+        max-width: 180px;
+    }
+}
+
 .popup-pamatka {
     font-size: 0.85rem;
     line-height: 1.4;

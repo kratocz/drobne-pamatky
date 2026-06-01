@@ -107,6 +107,32 @@
     L.control.layers(baseLayers, { 'Drobné památky': cluster }, { position: 'topright' }).addTo(map);
     L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 
+    // Legenda kategorií (5 + default) – Leaflet control, bottomright
+    const Legend = L.Control.extend({
+        options: { position: 'bottomright' },
+        onAdd: function () {
+            const div = L.DomUtil.create('div', 'dp-legend leaflet-bar');
+            const rows = Object.values(KATEGORIE).map(k => `
+                <div class="legend-row">
+                    <span class="legend-pin" style="background:${k.color}">
+                        <svg viewBox="0 0 24 24"><path d="${k.svg}"/></svg>
+                    </span>
+                    <span>${k.label}</span>
+                </div>`).join('');
+            div.innerHTML =
+                `<button class="legend-toggle" type="button" aria-label="Sbalit legendu">Druhy památek</button>` +
+                `<div class="legend-body">${rows}</div>`;
+            // Prevent map drag/zoom při interakci s legendou
+            L.DomEvent.disableClickPropagation(div);
+            L.DomEvent.disableScrollPropagation(div);
+            // Toggle collapse on title click
+            const toggle = div.querySelector('.legend-toggle');
+            toggle.addEventListener('click', () => div.classList.toggle('collapsed'));
+            return div;
+        },
+    });
+    new Legend().addTo(map);
+
     // Cache lookups & bucket responses (bucket = dict {nid: detail} per kraj_tid)
     let lookups = { druh: {}, misto: {} };
     const bucketCache = new Map();         // kraj_tid → Promise<bucket dict>
