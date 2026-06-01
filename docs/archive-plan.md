@@ -64,7 +64,7 @@ Když zmizí kterákoli z vrstev, ostatní dvě stačí na rekonstrukci celku (p
 |---|---|---|---|---|
 | 1 | `data/pamatky.geojson` | **2.1 MB** ✓ | při startu mapy | 81 735 features: GPS (`[lon,lat]`) + `n` (název) + `d` (druh tid) + `i` (nid) |
 | 2 | `data/lookups.json` | **176 KB** ✓ | při startu | mapping `druh_id → název` (31 řádků) + `místo_id → {name, parent_tid}` (19 445 řádků) |
-| 3 | `data/search-index.json` | ~1-3 MB (odhad, zatím nevygenerováno) | při startu (volitelně lazy po prvním searchi) | pre-built MiniSearch / FlexSearch index nad názvy + popisy |
+| 3 | `data/search-index.json` | **3.55 MB** ✓ | **lazy** – až po prvním searchi | pre-built MiniSearch (bez `storeFields`, index vrací jen IDs → klient si dohledá display v master + lookups) |
 | 4 | `data/details/<nid>.json` | **~4 KB / soubor** ✓ (319 MB total, 81 735 souborů) | **on-demand** při kliknutí na marker | popis, autor, datum, manifest fotek, plné taxonomy |
 
 > ✓ = naměřeno full exportem 2026-06-01 (`scripts/snapshot/export.py`, 18 s, 81 735 záznamů z lokální MariaDB 10.11). Detaily v commit `2557e89`.
@@ -75,12 +75,14 @@ Když zmizí kterákoli z vrstev, ostatní dvě stačí na rekonstrukci celku (p
 
 | Scénář | Payload | Návštěvníků / měsíc |
 |---|---|---|
-| First visit (master + lookups, bez search index) | **2.3 MB** | **~43 000 unikátních** |
+| **First visit, jen mapa** (master + lookups) | **2.3 MB** ✓ | **~43 000** |
 | First visit + 5× klik na detail | ~2.32 MB | ~43 000 |
-| First visit + search index (až bude) | ~3-5 MB | ~20-30 000 |
+| First visit + 1× search (lazy load indexu) | **5.85 MB** ✓ | **~17 000** |
 | Return visit (vše z cache přes Service Worker) | ~0 MB | neomezeně |
 
-→ S aggresivním cachingem a podílem return visitors **50–100 k unique návštěvníků / měsíc** bez problémů, i bez Cloudflare.
+→ S aggresivním cachingem a podílem return visitors **30–60 k unique návštěvníků / měsíc** bez problémů (závisí na podílu lidí, co hledají). S Cloudflare před GH Pages efektivně neomezeně.
+
+> **Search index je lazy** – nestahuje se při loadu stránky. Uživatel, který jen prohlíží mapu a kliká na markery, ho nepotřebuje. To výrazně šetří bandwidth: většina návštěvníků se „dostane" pod 2.3 MB, jen ti, kdo si vyhledají, dostanou +3.55 MB navíc.
 
 **Search:** klient-side přes [MiniSearch](https://github.com/lucaong/minisearch) nebo [FlexSearch](https://github.com/nextapps-de/flexsearch). Pre-built index v `search-index.json` obsahuje **název + druh + obec + první věta popisu** – pokrývá 80 % typických queries („kapličky u Strakonic", „kříže v okrese Plzeň-jih"). Hluboký full-text přes celý popis by vyžadoval ~10 MB index – necháme na později pokud bude potřeba.
 

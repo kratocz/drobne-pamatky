@@ -1,0 +1,13 @@
+{
+  "name": "drobne-pamatky-snapshot",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Build skripty pro snapshot export (search index, atd.)",
+  "scripts": {
+    "build-search-index": "node build_search_index.js"
+  },
+  "dependencies": {
+    "minisearch": "^7.2.0"
+  }
+}

@@ -180,6 +180,25 @@ def build_lookups(druh_per_nid, misto_per_nid, parents):
     return {"druh": druhy, "misto": mista}
 
 
+def build_search_data(objects, druh_per_nid, misto_per_nid):
+    """
+    Flat JSON pro pre-build search indexu (Node + MiniSearch, viz build_search_index.js).
+    Sloučí kraj/okres/obec/ku termy do jednoho 'misto' stringu, oddělené čárkou.
+    """
+    entries = []
+    for nid, obj in objects.items():
+        druh = druh_per_nid.get(nid)
+        misto_rows = misto_per_nid.get(nid, [])
+        misto_names = ", ".join(r["name"] for r in misto_rows)
+        entries.append({
+            "i": nid,
+            "n": obj["title"],
+            "d": druh["name"] if druh else "",
+            "m": misto_names,
+        })
+    return entries
+
+
 def _strip_empty(d):
     """Odstraní klíče s None / prázdným stringem pro úsporu místa."""
     return {k: v for k, v in d.items() if v not in (None, "", 0)}
@@ -262,19 +281,21 @@ def main():
             total_photos = sum(len(v) for v in photos_per_nid.values())
             print(f"      → {len(photos_per_nid)} nodes, {total_photos} fotek", flush=True)
 
-            print("[5/6] build & zapsat master GeoJSON + lookups …", flush=True)
+            print("[5/7] build & zapsat master GeoJSON + lookups + search-data …", flush=True)
             geojson = build_geojson(objects, druh_per_nid)
             lookups = build_lookups(druh_per_nid, misto_per_nid, parents)
+            search_data = build_search_data(objects, druh_per_nid, misto_per_nid)
 
-            geojson_path = os.path.join(OUT_DIR, "pamatky.geojson")
-            with open(geojson_path, "w", encoding="utf-8") as f:
+            with open(os.path.join(OUT_DIR, "pamatky.geojson"), "w", encoding="utf-8") as f:
                 json.dump(geojson, f, ensure_ascii=False, separators=(",", ":"))
 
-            lookups_path = os.path.join(OUT_DIR, "lookups.json")
-            with open(lookups_path, "w", encoding="utf-8") as f:
+            with open(os.path.join(OUT_DIR, "lookups.json"), "w", encoding="utf-8") as f:
                 json.dump(lookups, f, ensure_ascii=False, separators=(",", ":"))
 
-            print("[6/6] zapsat detail JSONy …", flush=True)
+            with open(os.path.join(OUT_DIR, "search-data.json"), "w", encoding="utf-8") as f:
+                json.dump(search_data, f, ensure_ascii=False, separators=(",", ":"))
+
+            print("[6/7] zapsat detail JSONy …", flush=True)
             written = 0
             for nid, obj in objects.items():
                 detail = build_detail(
@@ -288,6 +309,8 @@ def main():
                 written += 1
                 if written % 5000 == 0:
                     print(f"      … {written} / {len(objects)}", flush=True)
+
+            print(f"[7/7] hotovo, {written} detailů zapsáno", flush=True)
 
         dt = time.time() - t0
         print(f"\nHotovo za {dt:.1f}s. Výstup: {OUT_DIR}", flush=True)
