@@ -58,26 +58,29 @@ Když zmizí kterákoli z vrstev, ostatní dvě stačí na rekonstrukci celku (p
 
 **Problém:** 71 MB DB dump je pro klienta neudržitelně velký – cca 1 400 unikátních návštěvníků by za měsíc vyčerpalo 100 GB GH Pages bandwidth limit. Plus obsahuje hesla a další citlivá data, která nepatří na frontend. Řešení: **frontend nikdy nedostane DB dump**, dostane sadu předgenerovaných JSONů.
 
-**Strategie – hybridní 4 vrstvy** (initial load ~5–8 MB gzip):
+**Strategie – hybridní 4 vrstvy** (initial load **~2.3 MB gzip**, empiricky ověřeno):
 
 | # | Soubor | Velikost (gzip) | Kdy se loaduje | Co obsahuje |
 |---|---|---|---|---|
-| 1 | `data/pamatky.geojson` | **~3-5 MB** | při startu mapy | 82 k features: GPS + `n` (název) + `d` (druh ID) + `o` (obec ID) + `i` (nid) + `t` (thumb URL) |
-| 2 | `data/lookups.json` | ~200 KB | při startu | mapping `druh_id → název` (31 řádků) + `obec_id → název` (19 445 řádků) |
-| 3 | `data/search-index.json` | ~1-3 MB | při startu (volitelně lazy po prvním searchi) | pre-built MiniSearch / FlexSearch index nad názvy + popisy |
-| 4 | `data/details/<nid>.json` | ~2-3 KB / soubor | **on-demand** při kliknutí na marker | popis, autor, datum, manifest fotek, komentáře, plné taxonomy |
+| 1 | `data/pamatky.geojson` | **2.1 MB** ✓ | při startu mapy | 81 735 features: GPS (`[lon,lat]`) + `n` (název) + `d` (druh tid) + `i` (nid) |
+| 2 | `data/lookups.json` | **176 KB** ✓ | při startu | mapping `druh_id → název` (31 řádků) + `místo_id → {name, parent_tid}` (19 445 řádků) |
+| 3 | `data/search-index.json` | ~1-3 MB (odhad, zatím nevygenerováno) | při startu (volitelně lazy po prvním searchi) | pre-built MiniSearch / FlexSearch index nad názvy + popisy |
+| 4 | `data/details/<nid>.json` | **~4 KB / soubor** ✓ (319 MB total, 81 735 souborů) | **on-demand** při kliknutí na marker | popis, autor, datum, manifest fotek, plné taxonomy |
 
-> **Krátké property names v `pamatky.geojson`** (`n`, `d`, `o`, `i`, `t` místo `name`, `druh`, …) ušetří přes 82 k features ~1-2 MB raw. Klient si mappuje zpět při zobrazení.
+> ✓ = naměřeno full exportem 2026-06-01 (`scripts/snapshot/export.py`, 18 s, 81 735 záznamů z lokální MariaDB 10.11). Detaily v commit `2557e89`.
 
-**Bandwidth matematika** (100 GB/měsíc soft limit):
+> **Krátké property names v `pamatky.geojson`** (`n`, `d`, `i` místo `name`, `druh`, `nid`) ušetří přes 81 735 features ~1-2 MB raw. Klient si mappuje zpět při zobrazení. **Obec a kraj se nepředávají v master** – klient je dohledá v `details/<nid>.json` při kliknutí, nebo v `lookups.json` pro filter UI.
+
+**Bandwidth matematika** (100 GB/měsíc soft limit, **reálná čísla**):
 
 | Scénář | Payload | Návštěvníků / měsíc |
 |---|---|---|
-| First visit (master + lookup + search index) | ~7 MB | ~14 000 unikátních |
-| First visit + 5× klik na detail | ~7.05 MB | ~14 000 |
+| First visit (master + lookups, bez search index) | **2.3 MB** | **~43 000 unikátních** |
+| First visit + 5× klik na detail | ~2.32 MB | ~43 000 |
+| First visit + search index (až bude) | ~3-5 MB | ~20-30 000 |
 | Return visit (vše z cache přes Service Worker) | ~0 MB | neomezeně |
 
-→ S aggresivním cachingem a podílem return visitors **20–50 k unique návštěvníků / měsíc** bez problémů.
+→ S aggresivním cachingem a podílem return visitors **50–100 k unique návštěvníků / měsíc** bez problémů, i bez Cloudflare.
 
 **Search:** klient-side přes [MiniSearch](https://github.com/lucaong/minisearch) nebo [FlexSearch](https://github.com/nextapps-de/flexsearch). Pre-built index v `search-index.json` obsahuje **název + druh + obec + první věta popisu** – pokrývá 80 % typických queries („kapličky u Strakonic", „kříže v okrese Plzeň-jih"). Hluboký full-text přes celý popis by vyžadoval ~10 MB index – necháme na později pokud bude potřeba.
 
