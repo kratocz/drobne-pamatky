@@ -32,7 +32,7 @@ Když zmizí kterákoli z vrstev, ostatní dvě stačí na rekonstrukci celku (p
 |---|:---:|:---:|:---:|
 | Mapa + JS (Leaflet, src/) | ✅ | – | ✅ source |
 | GeoJSON master + per-památka detail JSONy + lookups + search index | ✅ aktuální | ✅ master snapshot | ✅ generátor |
-| Náhledy fotek (AVIF 250×188 @ q50, ~677 MB pro 125 k) | ✅ | – | – |
+| Náhledy fotek (AVIF 250×188 @ q50, **591 MB pro 115 729 souborů** ✓) | ✅ | – | – |
 | Zdrojové fotky (JPG, max 1200 px, ~17 GB) | – | ✅ | – |
 | Bonus thumbs bundle (preset 300, ~1.6 GB, volitelné) | – | ⚠️ TBD | – |
 | CSV / XLSX export | ✅ malé, ✅ aktuální | ✅ snapshot/verze | – |
@@ -104,13 +104,18 @@ Když zmizí kterákoli z vrstev, ostatní dvě stačí na rekonstrukci celku (p
 |---|---|
 | Formát | AVIF (`avifenc --speed 6 -q 50`) |
 | Max delší strana | 250 px |
-| Typický náhled | ~5.5 KB |
-| **Plný archiv (125 152 fotek)** | **~677 MB** |
-| Rezerva do 750 MB target | 73 MB |
-| Rezerva do 1 GB Pages limitu | 347 MB |
+| Typický náhled | **~5.1 KB** ✓ (naměřeno) |
+| **Plný archiv (115 729 fotek)** ✓ | **591 MB** (skutečný obsah) |
+| Rezerva do 750 MB target | **159 MB** ✓ |
+| Rezerva do 1 GB Pages limitu | **433 MB** ✓ |
 | Použitelná pro budoucí růst | ~5–10 let při stávajícím tempu nahrávání |
 | Browser support | ~94 % (Chrome 85+, FF 93+, Safari 16.4+, Edge 121+) |
 | Fallback pro ~6 % | textový `alt` (název / druh / obec), žádné WebP/JPEG fallback soubory |
+| Čas batchu (10-core M1) | **28.6 min** ✓ pro 125 152 souborů (73 fotek/s průměr) |
+| Missing v mirroru | 9 419 (DB má, lokální rsync mirror ne – nově nahrané po posledním rsync) |
+| Errors | 4 (poškozené source JPGs nebo nečitelné EXIF) |
+
+> ✓ = naměřeno batchem 2026-06-01 (`scripts/snapshot/build_thumbnails.py`). Originální plán předpokládal 677 MB pro 125 k souborů – realita 591 MB je o 86 MB lepší díky AVIF q50 efektivitě na 250 px rozměru.
 
 **Cílový rozpočet pro náhledy v repu:** 750 MB (rezerva 250 MB do 1 GB Pages limitu pro budoucí růst archivu).
 
