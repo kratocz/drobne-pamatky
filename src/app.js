@@ -136,6 +136,14 @@
     });
     map.addLayer(cluster);
 
+    // Když cluster přeskupí markery (zoom/pan), DOM elementy se obnoví.
+    // Re-aplikuj .marker-active na aktivně vybraný marker.
+    cluster.on('animationend', () => {
+        if (activeMarker) {
+            activeMarker.getElement()?.classList.add('marker-active');
+        }
+    });
+
     L.control.layers(baseLayers, { 'Drobné památky': cluster }, { position: 'topright' }).addTo(map);
     L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 
@@ -166,11 +174,13 @@
     new Legend().addTo(map);
 
     // Cache lookups & bucket responses (bucket = dict {nid: detail} per kraj_tid)
-    let lookups = { druh: {}, misto: {} };
+    let lookups = { druh: {}, misto: {}, users: {} };
     const bucketCache = new Map();         // kraj_tid → Promise<bucket dict>
     const detailCache = new Map();          // nid → detail (cached po prvním přístupu)
     // nid → L.Marker; pro search → flyTo + openPopup
     const markersByNid = new Map();
+    // Aktuálně zvýrazněný marker (sidebar otevřen pro tuto památku)
+    let activeMarker = null;
     // Master feature properties (nid → {n, d, lat, lon}) – pro search results display
     const propsByNid = new Map();
     let activeNid = null;
@@ -336,7 +346,13 @@
             meta.licence && `<div><strong>Licence:</strong> ${escapeHtml(String(meta.licence))}</div>`,
             meta.wikidata_qid && `<div><strong>Wikidata:</strong> <a href="https://www.wikidata.org/wiki/${encodeURIComponent(meta.wikidata_qid)}" target="_blank" rel="noopener">${escapeHtml(meta.wikidata_qid)}</a></div>`,
             meta.nkpid && `<div><strong>NPÚ ID:</strong> ${escapeHtml(String(meta.nkpid))}</div>`,
-            meta.author_uid && `<div><strong>Autor uid:</strong> ${escapeHtml(String(meta.author_uid))}</div>`,
+            meta.author_uid && (() => {
+                const authorName = lookups.users?.[meta.author_uid];
+                // Profily na drobnepamatky.cz nejsou veřejné (login wall) – jen text, žádný odkaz.
+                return authorName
+                    ? `<div><strong>Autor:</strong> ${escapeHtml(authorName)}</div>`
+                    : `<div><strong>Autor uid:</strong> ${escapeHtml(String(meta.author_uid))}</div>`;
+            })(),
         ].filter(Boolean);
 
         return `
@@ -371,10 +387,28 @@
         });
     };
 
+    const setActiveMarker = (nid) => {
+        // Odstranit highlight ze stávajícího aktivního markeru
+        if (activeMarker) {
+            activeMarker.getElement()?.classList.remove('marker-active');
+            activeMarker = null;
+        }
+        if (nid === null || nid === undefined) return;
+        const marker = markersByNid.get(Number(nid));
+        if (!marker) return;
+        activeMarker = marker;
+        // Force opacity 1 (override search-filter zešednutí)
+        marker.setOpacity(1);
+        // Element existuje jen pokud je marker právě vykreslen (mimo cluster).
+        // Pokud je v clusteru, class se doplní v `animationend` listeneru níže.
+        marker.getElement()?.classList.add('marker-active');
+    };
+
     const openDetailPanel = async (props) => {
         clearRouteCloseTimer();
         activeNid = Number(props.i);
         updateDocumentTitle(props.i);
+        setActiveMarker(props.i);
 
         // Loading state hned
         panelContentEl.innerHTML = buildDetailHtml(props, null);
@@ -393,6 +427,7 @@
     const closeDetailPanel = ({ updateUrl = true } = {}) => {
         panelEl.classList.remove('open');
         panelEl.setAttribute('aria-hidden', 'true');
+        setActiveMarker(null);
         if (activeNid !== null) {
             activeNid = null;
             updateDocumentTitle(null);
@@ -552,7 +587,9 @@
             return;
         }
         markersByNid.forEach((marker, nid) => {
-            marker.setOpacity(highlightedNids.has(nid) ? 1 : 0.15);
+            // Aktivní marker (sidebar otevřený) zůstává vždy plně viditelný
+            const isActive = marker === activeMarker;
+            marker.setOpacity(isActive || highlightedNids.has(nid) ? 1 : 0.15);
         });
     };
 

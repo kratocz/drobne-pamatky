@@ -126,6 +126,23 @@ def fetch_term_hierarchy(cur):
     return {r["tid"]: r["parent"] for r in cur.fetchall()}
 
 
+def fetch_users(cur):
+    """Mapping uid → name pro autory publikovaných uzlů.
+    Profily na drobnepamatky.cz nejsou veřejné (login wall), takže linkujeme
+    jen jméno bez URL – stejné info je veřejně k vidění v atribucích fotek."""
+    cur.execute(
+        """
+        SELECT u.uid, u.name
+        FROM users u
+        WHERE u.uid IN (
+            SELECT DISTINCT n.uid FROM node n
+            WHERE n.type IN ('objekt', 'cesta') AND n.status = 1
+        )
+        """
+    )
+    return {r["uid"]: r["name"] for r in cur.fetchall()}
+
+
 def fetch_photos_per_nid(cur):
     """Obrázky vázané na publikované uzly přes content_field_obrazek."""
     cur.execute(
@@ -181,8 +198,8 @@ def build_geojson(objects, druh_per_nid, kraj_per_nid):
     return {"type": "FeatureCollection", "features": features}
 
 
-def build_lookups(druh_per_nid, misto_per_nid, parents):
-    """Druh + místo lookup tabulky pro klienta."""
+def build_lookups(druh_per_nid, misto_per_nid, parents, users):
+    """Druh + místo + autoři lookup tabulky pro klienta."""
     druhy = {}
     for d in druh_per_nid.values():
         druhy[d["tid"]] = d["name"]
@@ -191,7 +208,7 @@ def build_lookups(druh_per_nid, misto_per_nid, parents):
     for rows in misto_per_nid.values():
         for r in rows:
             mista[r["tid"]] = {"name": r["name"], "parent_tid": parents.get(r["tid"], 0)}
-    return {"druh": druhy, "misto": mista}
+    return {"druh": druhy, "misto": mista, "users": users}
 
 
 def build_search_data(objects, druh_per_nid, misto_per_nid):
@@ -278,15 +295,16 @@ def main():
                 objects = {nid: o for nid, o in objects.items() if nid in nids}
             print(f"      → {len(objects)} objektů", flush=True)
 
-            print("[3/6] fetch druh + místo + hierarchie …", flush=True)
+            print("[3/6] fetch druh + místo + hierarchie + autoři …", flush=True)
             druh_per_nid = fetch_druh_per_nid(cur)
             misto_per_nid = fetch_misto_per_nid(cur)
             parents = fetch_term_hierarchy(cur)
+            users = fetch_users(cur)
             if args.limit:
                 druh_per_nid = {k: v for k, v in druh_per_nid.items() if k in nids}
                 misto_per_nid = {k: v for k, v in misto_per_nid.items() if k in nids}
             print(f"      → {len(druh_per_nid)} druh, {len(misto_per_nid)} mist, "
-                  f"{len(parents)} hierarchy", flush=True)
+                  f"{len(parents)} hierarchy, {len(users)} autorů", flush=True)
 
             print("[4/6] fetch photos (1 row / fotka) …", flush=True)
             photos_per_nid = fetch_photos_per_nid(cur)
@@ -303,7 +321,7 @@ def main():
             }
 
             geojson = build_geojson(objects, druh_per_nid, kraj_per_nid)
-            lookups = build_lookups(druh_per_nid, misto_per_nid, parents)
+            lookups = build_lookups(druh_per_nid, misto_per_nid, parents, users)
             search_data = build_search_data(objects, druh_per_nid, misto_per_nid)
 
             with open(os.path.join(OUT_DIR, "pamatky.geojson"), "w", encoding="utf-8") as f:
