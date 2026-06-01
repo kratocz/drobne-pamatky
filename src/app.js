@@ -388,9 +388,19 @@
 
         dataReady = true;
         initSearch();
-        if (!openRouteFromLocation({ replaceUrl: true }) && !currentRouteNid()) {
-            setMapRoute({ replace: true });
-        }
+        // Cluster po addLayer potřebuje 1 rAF tick na inicializaci bounds,
+        // jinak cluster.zoomToShowLayer při initial routing crashne na
+        // 'this._northEast is undefined'.
+        requestAnimationFrame(() => {
+            try {
+                if (!openRouteFromLocation({ replaceUrl: true }) && !currentRouteNid()) {
+                    setMapRoute({ replace: true });
+                }
+            } catch (err) {
+                console.error('initial routing failed:', err);
+                setMapRoute({ replace: true });
+            }
+        });
     }).catch((err) => {
         console.error('Chyba načítání:', err);
         setStatus(`Nelze načíst data: ${err}`);
@@ -421,8 +431,11 @@
         if (miniSearch) return Promise.resolve(miniSearch);
         if (miniSearchLoading) return miniSearchLoading;
         miniSearchLoading = fetch(SEARCH_INDEX_URL)
-            .then(r => r.ok ? r.text() : Promise.reject(`HTTP ${r.status}`))
+            .then(r => r.ok ? r.text() : Promise.reject(new Error(`HTTP ${r.status} pro ${SEARCH_INDEX_URL}`)))
             .then(text => {
+                if (!text || typeof text !== 'string') {
+                    throw new Error(`search-index empty/invalid (${typeof text})`);
+                }
                 const opts = {
                     fields: ['n', 'd', 'm'],
                     processTerm: stripDiacritics,
@@ -438,6 +451,7 @@
             })
             .catch(err => {
                 miniSearchLoading = null;
+                console.warn('search-index load selhal:', err);
                 throw err;
             });
         return miniSearchLoading;
@@ -487,14 +501,28 @@
         }
 
         const latlng = marker.getLatLng();
-        // Pokud je v clusteru, otevři přes parent group
-        if (cluster.hasLayer(marker)) {
-            cluster.zoomToShowLayer(marker, () => {
-                marker.openPopup();
-            });
-        } else {
+        const openPopupSafe = () => {
+            try { marker.openPopup(); } catch (err) { console.warn('openPopup failed:', err); }
+        };
+
+        // Cluster.zoomToShowLayer může selhat při initial state (bounds ještě
+        // nejsou dopočítané po addLayer). Fallback: prostě flyTo + openPopup
+        // s krátkým delayem aby Leaflet stihl rerender.
+        const useFlyTo = () => {
             map.flyTo(latlng, Math.max(map.getZoom(), 16), { duration: 0.6 });
-            marker.openPopup();
+            setTimeout(openPopupSafe, 650);
+        };
+
+        try {
+            if (cluster.hasLayer(marker)) {
+                cluster.zoomToShowLayer(marker, openPopupSafe);
+            } else {
+                map.flyTo(latlng, Math.max(map.getZoom(), 16), { duration: 0.6 });
+                openPopupSafe();
+            }
+        } catch (err) {
+            console.warn('cluster.zoomToShowLayer failed, používám flyTo fallback:', err);
+            useFlyTo();
         }
         return true;
     };
