@@ -6,7 +6,7 @@
     const MASTER_URL = 'data/pamatky.geojson';
     const LOOKUPS_URL = 'data/lookups.json';
     const SEARCH_INDEX_URL = 'data/search-index.json';
-    const DETAIL_URL = (nid) => `data/details/${nid}.json`;
+    const BUCKET_URL = (krajTid) => `data/details/${krajTid}.json`;
     const THUMB_URL = (filepath) => {
         const m = filepath.match(/^files\/(\d{4})\/(.+)\.jpg$/i);
         return m ? `data/thumbs/${m[1]}/${m[2]}.avif` : null;
@@ -65,9 +65,10 @@
     L.control.layers(baseLayers, { 'Drobné památky': cluster }, { position: 'topright' }).addTo(map);
     L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 
-    // Cache lookups & detail responses
+    // Cache lookups & bucket responses (bucket = dict {nid: detail} per kraj_tid)
     let lookups = { druh: {}, misto: {} };
-    const detailCache = new Map();
+    const bucketCache = new Map();         // kraj_tid → Promise<bucket dict>
+    const detailCache = new Map();          // nid → detail (cached po prvním přístupu)
     // nid → L.Marker; pro search → flyTo + openPopup
     const markersByNid = new Map();
     // Master feature properties (nid → {n, d, lat, lon}) – pro search results display
@@ -134,16 +135,32 @@
         `;
     };
 
-    const loadDetail = async (nid) => {
+    const loadBucket = (krajTid) => {
+        if (bucketCache.has(krajTid)) return bucketCache.get(krajTid);
+        const promise = fetch(BUCKET_URL(krajTid))
+            .then(r => r.ok ? r.json() : Promise.reject(`HTTP ${r.status}`))
+            .then(bucket => {
+                // přimíchat do detailCache pro instant retrieval
+                for (const [nid, detail] of Object.entries(bucket)) {
+                    detailCache.set(Number(nid), detail);
+                }
+                return bucket;
+            })
+            .catch(err => {
+                bucketCache.delete(krajTid);
+                throw err;
+            });
+        bucketCache.set(krajTid, promise);
+        return promise;
+    };
+
+    const loadDetail = async (nid, krajTid) => {
         if (detailCache.has(nid)) return detailCache.get(nid);
         try {
-            const res = await fetch(DETAIL_URL(nid));
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const detail = await res.json();
-            detailCache.set(nid, detail);
-            return detail;
+            await loadBucket(krajTid || 0);
+            return detailCache.get(nid) || null;
         } catch (err) {
-            console.warn(`Detail ${nid} se nepodařilo načíst:`, err);
+            console.warn(`Bucket pro kraj ${krajTid} (památka ${nid}) selhal:`, err);
             return null;
         }
     };
@@ -172,7 +189,7 @@
                 lyr.bindTooltip(props.n || '?', { direction: 'top', offset: [0, -10] });
                 lyr.bindPopup(buildPopupHtml(props, null), { minWidth: 240, maxWidth: 320 });
                 lyr.on('popupopen', async (e) => {
-                    const detail = await loadDetail(props.i);
+                    const detail = await loadDetail(props.i, props.k);
                     if (detail) {
                         e.popup.setContent(buildPopupHtml(props, detail));
                     }
@@ -266,6 +283,10 @@
         }
     };
 
+    // Pre-warm bucket pro Středočeský kraj (nejvíc památek + první view obvykle pokrývá ČR)
+    // – tichá optimalizace, na first popup je už cache hot.
+    const PREWARM_KRAJ = 2;  // Středočeský
+
     const runSearch = (q) => {
         if (!miniSearch) return;
         const hits = miniSearch.search(q);
@@ -340,6 +361,7 @@
         // pre-warm searchindex po malé idle (lepší UX, ale nezdrží initial paint)
         if ('requestIdleCallback' in window) {
             requestIdleCallback(() => loadSearchIndex().catch(() => {}));
+            requestIdleCallback(() => loadBucket(PREWARM_KRAJ).catch(() => {}));
         }
     };
 })();

@@ -65,11 +65,13 @@ Když zmizí kterákoli z vrstev, ostatní dvě stačí na rekonstrukci celku (p
 | 1 | `data/pamatky.geojson` | **2.1 MB** ✓ | při startu mapy | 81 735 features: GPS (`[lon,lat]`) + `n` (název) + `d` (druh tid) + `i` (nid) |
 | 2 | `data/lookups.json` | **176 KB** ✓ | při startu | mapping `druh_id → název` (31 řádků) + `místo_id → {name, parent_tid}` (19 445 řádků) |
 | 3 | `data/search-index.json` | **3.55 MB** ✓ | **lazy** – až po prvním searchi | pre-built MiniSearch (bez `storeFields`, index vrací jen IDs → klient si dohledá display v master + lookups) |
-| 4 | `data/details/<nid>.json` | **~4 KB / soubor** ✓ (319 MB total, 81 735 souborů) | **on-demand** při kliknutí na marker | popis, autor, datum, manifest fotek, plné taxonomy |
+| 4 | `data/details/<kraj_tid>.json` (bucketed) | **~360 KB gz / kraj** ✓ (5 MB gz total, **33 MB raw, 15 souborů** – 14 krajů + bucket 0) | **on-demand** podle `k` v master properties; pre-warm Středočeského kraje přes `requestIdleCallback` | dict `{nid: detail}` pro celý kraj: popis, autor, datum, manifest fotek, plné taxonomy |
 
 > ✓ = naměřeno full exportem 2026-06-01 (`scripts/snapshot/export.py`, 18 s, 81 735 záznamů z lokální MariaDB 10.11). Detaily v commit `2557e89`.
 
-> **Krátké property names v `pamatky.geojson`** (`n`, `d`, `i` místo `name`, `druh`, `nid`) ušetří přes 81 735 features ~1-2 MB raw. Klient si mappuje zpět při zobrazení. **Obec a kraj se nepředávají v master** – klient je dohledá v `details/<nid>.json` při kliknutí, nebo v `lookups.json` pro filter UI.
+> **Krátké property names v `pamatky.geojson`** (`n`, `d`, `i`, `k` místo `name`, `druh`, `nid`, `kraj`) ušetří přes 81 735 features ~1-2 MB raw. Klient si mappuje zpět při zobrazení. **`k` (kraj_tid) je v master pro lazy fetch správného detail bucketu.** Obec/okres/ku se dohledávají z `details/<k>.json[nid].misto_termy` přes `lookups.misto`.
+
+> **Bucketing detailů per kraj (strategie B):** původní design s `details/<nid>.json` (81 735 souborů × ~4 KB block padding = ~319 MB na disku) překračoval Pages 1 GB limit. Nový bucketed model (1 soubor per kraj, dict `{nid: detail}`) snížil disk usage na **33 MB** a gzip transfer na **5 MB total**. Trade-off: první popup v kraji dotáhne celý bucket (~360 KB gz), ale následující popupy v témž kraji jsou instant (vše v `detailCache`).
 
 **Bandwidth matematika** (100 GB/měsíc soft limit, **reálná čísla**):
 

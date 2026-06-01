@@ -147,8 +147,21 @@ def fetch_photos_per_nid(cur):
     return by_nid
 
 
-def build_geojson(objects, druh_per_nid):
-    """Master GeoJSON – krátké property names: n, d, i."""
+def resolve_kraj_tid(misto_rows, parents):
+    """
+    Najde top-level kraj_tid v misto_termy daného uzlu.
+    Kraj má v term_hierarchy parent_tid = 0.
+    Vrací int (tid kraje) nebo 0 pokud žádný nenalezen.
+    """
+    for r in misto_rows:
+        if parents.get(r["tid"], 0) == 0:
+            return r["tid"]
+    return 0
+
+
+def build_geojson(objects, druh_per_nid, kraj_per_nid):
+    """Master GeoJSON – krátké property names: n (název), d (druh tid),
+    i (nid), k (kraj tid pro bucketed detail load)."""
     features = []
     for nid, obj in objects.items():
         druh = druh_per_nid.get(nid)
@@ -162,6 +175,7 @@ def build_geojson(objects, druh_per_nid):
                 "n": obj["title"],
                 "d": druh["tid"] if druh else None,
                 "i": nid,
+                "k": kraj_per_nid.get(nid, 0),
             },
         })
     return {"type": "FeatureCollection", "features": features}
@@ -282,7 +296,13 @@ def main():
             print(f"      → {len(photos_per_nid)} nodes, {total_photos} fotek", flush=True)
 
             print("[5/7] build & zapsat master GeoJSON + lookups + search-data …", flush=True)
-            geojson = build_geojson(objects, druh_per_nid)
+            # Pre-compute kraj_tid per nid (top-level region pro bucketed detail JSONs)
+            kraj_per_nid = {
+                nid: resolve_kraj_tid(misto_per_nid.get(nid, []), parents)
+                for nid in objects
+            }
+
+            geojson = build_geojson(objects, druh_per_nid, kraj_per_nid)
             lookups = build_lookups(druh_per_nid, misto_per_nid, parents)
             search_data = build_search_data(objects, druh_per_nid, misto_per_nid)
 
@@ -295,8 +315,12 @@ def main():
             with open(os.path.join(OUT_DIR, "search-data.json"), "w", encoding="utf-8") as f:
                 json.dump(search_data, f, ensure_ascii=False, separators=(",", ":"))
 
-            print("[6/7] zapsat detail JSONy …", flush=True)
-            written = 0
+            print("[6/7] zapsat bucketed detail JSONy (per kraj_tid) …", flush=True)
+            # Sloučit detaily do bucketů per kraj_tid.
+            # Strategie B z plánu: 14 krajů + bucket 0 pro památky bez resolution kraje.
+            # Sníží Pages disk usage z ~319 MB (per-file 4 KB block padding)
+            # na ~30 MB (14 souborů × ~2 MB).
+            buckets = {}
             for nid, obj in objects.items():
                 detail = build_detail(
                     obj,
@@ -304,13 +328,19 @@ def main():
                     misto_per_nid.get(nid, []),
                     photos_per_nid.get(nid, []),
                 )
-                with open(os.path.join(DETAILS_DIR, f"{nid}.json"), "w", encoding="utf-8") as f:
-                    json.dump(detail, f, ensure_ascii=False, separators=(",", ":"), default=str)
-                written += 1
-                if written % 5000 == 0:
-                    print(f"      … {written} / {len(objects)}", flush=True)
+                kraj_tid = kraj_per_nid[nid]
+                buckets.setdefault(kraj_tid, {})[str(nid)] = detail
 
-            print(f"[7/7] hotovo, {written} detailů zapsáno", flush=True)
+            for kraj_tid, bucket in buckets.items():
+                kraj_name = lookups["misto"].get(kraj_tid, {}).get("name", "(unknown)")
+                with open(os.path.join(DETAILS_DIR, f"{kraj_tid}.json"), "w", encoding="utf-8") as f:
+                    json.dump(bucket, f, ensure_ascii=False, separators=(",", ":"), default=str)
+                print(f"      bucket {kraj_tid:>5} ({kraj_name:<22}) "
+                      f"= {len(bucket):>5} památek", flush=True)
+
+            written = sum(len(b) for b in buckets.values())
+            print(f"[7/7] hotovo, {written} detailů v {len(buckets)} bucketech zapsáno",
+                  flush=True)
 
         dt = time.time() - t0
         print(f"\nHotovo za {dt:.1f}s. Výstup: {OUT_DIR}", flush=True)
