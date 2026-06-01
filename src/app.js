@@ -96,10 +96,12 @@
 
     const cluster = L.markerClusterGroup({
         showCoverageOnHover: false,
-        // Méně agresivní clustering: na vyšších zoom levelech (krajský pohled
-        // a hloub) chceme vidět rychle jednotlivé památky, ne sumy.
-        maxClusterRadius: 40,
-        disableClusteringAtZoom: 13,
+        // Původní agresivnější clustering: na nižších zoomech velké shluky,
+        // jednotlivé markery až street-level. Méně agresivní hodnoty (40/13)
+        // způsobovaly viditelné seknutí kvůli vykreslování tisíců DivIcon
+        // SVG markerů najednou.
+        maxClusterRadius: 60,
+        disableClusteringAtZoom: 16,
         chunkedLoading: true,
     });
     map.addLayer(cluster);
