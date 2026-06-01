@@ -281,32 +281,131 @@
         return chain.map(c => escapeHtml(c.name)).join(' › ');
     };
 
-    const buildPopupHtml = (props, detail) => {
+    // ===== Detail panel (sidebar) =====
+
+    const panelEl = document.getElementById('detail-panel');
+    const panelContentEl = panelEl.querySelector('.detail-content');
+    const panelCloseEl = panelEl.querySelector('.detail-close');
+
+    const buildDetailHtml = (props, detail) => {
         const title = props.n || 'Bez názvu';
         const druh = lookups.druh[props.d] || '';
-        const misto = detail ? buildMistoCesta(detail.misto_termy) : '<em>načítám…</em>';
-        const popis = detail?.popis?.zvlastnost || detail?.popis?.wiki || detail?.popis?.sidlo || '';
-        const fotka = detail?.fotky?.[0];
-        const thumbUrl = fotka ? THUMB_URL(fotka.path) : null;
+
+        if (!detail) {
+            return `
+                <h2>${escapeHtml(title)}</h2>
+                <p class="detail-meta">${druh ? `<strong>${escapeHtml(druh)}</strong>` : ''}</p>
+                <p class="loading">Načítám detail…</p>
+            `;
+        }
+
+        const misto = buildMistoCesta(detail.misto_termy);
+        const fotky = detail.fotky || [];
+
+        const galleryHtml = fotky.length ? (() => {
+            const heroUrl = THUMB_URL(fotky[0].path);
+            const altText = escapeHtml(title);
+            const thumbsHtml = fotky.length > 1 ? `
+                <div class="gallery-thumbs">
+                    ${fotky.map((f, idx) => {
+                        const u = THUMB_URL(f.path);
+                        return `<img src="${u}" alt="${altText}" data-fotka-idx="${idx}" class="${idx === 0 ? 'active' : ''}" loading="lazy">`;
+                    }).join('')}
+                </div>` : '';
+            return `<div class="gallery-hero"><img src="${heroUrl}" alt="${altText}" id="detail-hero-img" loading="lazy"></div>${thumbsHtml}`;
+        })() : '';
+
+        const popisParts = [
+            detail.popis?.zvlastnost,
+            detail.popis?.oborano,
+            detail.popis?.wiki,
+            detail.popis?.cesta,
+        ].filter(Boolean);
+
+        const meta = detail.metadata || {};
+        const formatTs = (ts) => {
+            if (!ts) return null;
+            try {
+                return new Date(Number(ts) * 1000).toLocaleDateString('cs-CZ');
+            } catch (e) { return null; }
+        };
+        const createdDate = formatTs(meta.created_ts);
+        const metaRows = [
+            meta.pridano && `<div><strong>Přidáno:</strong> ${escapeHtml(meta.pridano)}</div>`,
+            createdDate && `<div><strong>Vytvořeno:</strong> ${escapeHtml(createdDate)}</div>`,
+            meta.licence && `<div><strong>Licence:</strong> ${escapeHtml(String(meta.licence))}</div>`,
+            meta.wikidata_qid && `<div><strong>Wikidata:</strong> <a href="https://www.wikidata.org/wiki/${encodeURIComponent(meta.wikidata_qid)}" target="_blank" rel="noopener">${escapeHtml(meta.wikidata_qid)}</a></div>`,
+            meta.nkpid && `<div><strong>NPÚ ID:</strong> ${escapeHtml(String(meta.nkpid))}</div>`,
+            meta.author_uid && `<div><strong>Autor uid:</strong> ${escapeHtml(String(meta.author_uid))}</div>`,
+        ].filter(Boolean);
 
         return `
-            <div class="popup-pamatka">
-                <h3>${escapeHtml(title)}</h3>
-                <p class="meta">
-                    ${druh ? `<strong>${escapeHtml(druh)}</strong>` : ''}
-                    ${druh && misto ? ' · ' : ''}
-                    ${misto}
-                </p>
-                ${thumbUrl ? `<div class="thumb"><img src="${thumbUrl}" alt="${escapeHtml(title)}" loading="lazy"></div>` : ''}
-                ${popis ? `<p class="description">${escapeHtml(popis)}</p>` : ''}
-                <p class="links">
-                    <a class="source-link" href="${ORIG_URL(props.i)}" target="_blank" rel="noopener">
-                        Zdroj na drobnepamatky.cz →
-                    </a>
-                </p>
+            <h2>${escapeHtml(title)}</h2>
+            <p class="detail-meta">
+                ${druh ? `<strong>${escapeHtml(druh)}</strong>` : ''}
+                ${druh && misto ? ' · ' : ''}
+                ${misto}
+            </p>
+            ${galleryHtml}
+            ${popisParts.map(p => `<p class="detail-popis">${escapeHtml(p)}</p>`).join('')}
+            ${metaRows.length ? `<div class="detail-metaextra">${metaRows.join('')}</div>` : ''}
+            <div class="detail-links">
+                <a href="${ORIG_URL(props.i)}" target="_blank" rel="noopener">Zdroj na drobnepamatky.cz →</a>
             </div>
         `;
     };
+
+    const attachGalleryHandlers = (detail) => {
+        const hero = panelContentEl.querySelector('#detail-hero-img');
+        const thumbs = panelContentEl.querySelectorAll('.gallery-thumbs img');
+        if (!hero || !thumbs.length) return;
+        thumbs.forEach(t => {
+            t.addEventListener('click', () => {
+                const idx = Number(t.dataset.fotkaIdx);
+                const f = detail.fotky?.[idx];
+                if (!f) return;
+                hero.src = THUMB_URL(f.path);
+                thumbs.forEach(x => x.classList.remove('active'));
+                t.classList.add('active');
+            });
+        });
+    };
+
+    const openDetailPanel = async (props) => {
+        clearRouteCloseTimer();
+        activeNid = Number(props.i);
+        updateDocumentTitle(props.i);
+
+        // Loading state hned
+        panelContentEl.innerHTML = buildDetailHtml(props, null);
+        panelEl.classList.add('open');
+        panelEl.setAttribute('aria-hidden', 'false');
+
+        const detail = await loadDetail(props.i, props.k);
+        // Pokud user mezitím zavřel panel nebo otevřel jiný, neaktualizuj content
+        if (activeNid !== Number(props.i)) return;
+        if (detail) {
+            panelContentEl.innerHTML = buildDetailHtml(props, detail);
+            attachGalleryHandlers(detail);
+        }
+    };
+
+    const closeDetailPanel = ({ updateUrl = true } = {}) => {
+        panelEl.classList.remove('open');
+        panelEl.setAttribute('aria-hidden', 'true');
+        if (activeNid !== null) {
+            activeNid = null;
+            updateDocumentTitle(null);
+            if (updateUrl) setMapRoute();
+        }
+    };
+
+    panelCloseEl.addEventListener('click', () => closeDetailPanel());
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && panelEl.classList.contains('open')) {
+            closeDetailPanel();
+        }
+    });
 
     const loadBucket = (krajTid) => {
         if (bucketCache.has(krajTid)) return bucketCache.get(krajTid);
@@ -352,7 +451,7 @@
                 const marker = L.marker(latlng, { icon: buildIcon(props.d) });
                 markersByNid.set(props.i, marker);
                 propsByNid.set(props.i, {
-                    n: props.n, d: props.d,
+                    i: props.i, n: props.n, d: props.d, k: props.k,
                     lat: latlng.lat, lon: latlng.lng,
                 });
                 return marker;
@@ -360,22 +459,9 @@
             onEachFeature: (feature, lyr) => {
                 const props = feature.properties || {};
                 lyr.bindTooltip(props.n || '?', { direction: 'top', offset: [0, -10] });
-                lyr.bindPopup(buildPopupHtml(props, null), { minWidth: 240, maxWidth: 320 });
-                lyr.on('popupopen', async (e) => {
-                    clearRouteCloseTimer();
-                    activeNid = props.i;
-                    updateDocumentTitle(props.i);
+                lyr.on('click', () => {
                     setPamatkaRoute(props.i);
-
-                    const detail = await loadDetail(props.i, props.k);
-                    if (detail) {
-                        e.popup.setContent(buildPopupHtml(props, detail));
-                    }
-                });
-                lyr.on('popupclose', () => {
-                    if (activeNid !== props.i) return;
-                    activeNid = null;
-                    scheduleMapRouteAfterPopupClose();
+                    openDetailPanel(props);
                 });
             },
         });
@@ -501,24 +587,25 @@
         }
 
         const latlng = marker.getLatLng();
-        const openPopupSafe = () => {
-            try { marker.openPopup(); } catch (err) { console.warn('openPopup failed:', err); }
+        const props = propsByNid.get(normalizedNid);
+        const openPanel = () => {
+            if (props) openDetailPanel(props);
         };
 
         // Cluster.zoomToShowLayer může selhat při initial state (bounds ještě
-        // nejsou dopočítané po addLayer). Fallback: prostě flyTo + openPopup
+        // nejsou dopočítané po addLayer). Fallback: flyTo + openDetailPanel
         // s krátkým delayem aby Leaflet stihl rerender.
         const useFlyTo = () => {
             map.flyTo(latlng, Math.max(map.getZoom(), 16), { duration: 0.6 });
-            setTimeout(openPopupSafe, 650);
+            setTimeout(openPanel, 650);
         };
 
         try {
             if (cluster.hasLayer(marker)) {
-                cluster.zoomToShowLayer(marker, openPopupSafe);
+                cluster.zoomToShowLayer(marker, openPanel);
             } else {
                 map.flyTo(latlng, Math.max(map.getZoom(), 16), { duration: 0.6 });
-                openPopupSafe();
+                openPanel();
             }
         } catch (err) {
             console.warn('cluster.zoomToShowLayer failed, používám flyTo fallback:', err);
@@ -550,9 +637,8 @@
             return;
         }
 
-        activeNid = null;
-        updateDocumentTitle(null);
-        map.closePopup();
+        // URL ukazuje na mapu (žádný nid) → zavři panel pokud je otevřený
+        closeDetailPanel({ updateUrl: false });
     });
 
     // Pre-warm bucket pro Středočeský kraj (nejvíc památek + první view obvykle pokrývá ČR)

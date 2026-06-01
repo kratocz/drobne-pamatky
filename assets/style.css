@@ -308,6 +308,164 @@ main {
     pointer-events: auto;
 }
 
+/* ===== Detail panel (sidebar) ===== */
+.detail-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 440px;
+    max-width: 100%;
+    height: 100%;
+    background: #ffffff;
+    box-shadow: -4px 0 18px rgba(0, 0, 0, 0.18);
+    transform: translateX(105%);
+    transition: transform 0.25s ease;
+    z-index: 1000;
+    overflow-y: auto;
+}
+
+.detail-panel.open {
+    transform: translateX(0);
+}
+
+.detail-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 50%;
+    font-size: 1.4rem;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 2;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+    color: #1f2937;
+}
+
+.detail-close:hover {
+    background: #fef3c7;
+}
+
+.detail-content {
+    padding: 1rem 1.25rem 2rem;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: #1f2937;
+}
+
+.detail-content h2 {
+    margin: 0 0 0.35rem;
+    font-size: 1.15rem;
+    padding-right: 2.5rem; /* prostor pro close × */
+    color: #1f2937;
+}
+
+.detail-content .detail-meta {
+    color: #6b7280;
+    font-size: 0.8rem;
+    margin: 0 0 1rem;
+    line-height: 1.4;
+}
+
+.detail-content .detail-meta strong {
+    color: #1f2937;
+}
+
+.detail-content .gallery-hero {
+    margin-bottom: 0.4rem;
+}
+
+.detail-content .gallery-hero img {
+    width: 100%;
+    border-radius: 4px;
+    background: #e5e7eb;
+    display: block;
+}
+
+.detail-content .gallery-thumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 0 0 1rem;
+}
+
+.detail-content .gallery-thumbs img {
+    width: 64px;
+    height: 48px;
+    object-fit: cover;
+    border-radius: 3px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    background: #e5e7eb;
+}
+
+.detail-content .gallery-thumbs img:hover {
+    border-color: #fbbf24;
+}
+
+.detail-content .gallery-thumbs img.active {
+    border-color: #d97706;
+}
+
+.detail-content .detail-popis {
+    margin: 0 0 0.7rem;
+}
+
+.detail-content .detail-metaextra {
+    margin-top: 1.25rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid #e5e7eb;
+    font-size: 0.75rem;
+    color: #6b7280;
+}
+
+.detail-content .detail-metaextra div {
+    margin-bottom: 0.25rem;
+}
+
+.detail-content .detail-metaextra strong {
+    color: #4b5563;
+}
+
+.detail-content .detail-metaextra a {
+    color: #d97706;
+    text-decoration: none;
+}
+
+.detail-content .detail-metaextra a:hover {
+    text-decoration: underline;
+}
+
+.detail-content .detail-links {
+    margin-top: 1rem;
+}
+
+.detail-content .detail-links a {
+    color: #d97706;
+    font-weight: 500;
+    text-decoration: none;
+    font-size: 0.85rem;
+}
+
+.detail-content .detail-links a:hover {
+    text-decoration: underline;
+}
+
+.detail-content .loading {
+    color: #6b7280;
+    font-style: italic;
+}
+
+@media (max-width: 600px) {
+    .detail-panel {
+        width: 100%;
+    }
+}
+
+/* Legacy popup style (zachováno pro případ že popup ještě někde vyskočí) */
 .popup-pamatka {
     font-size: 0.85rem;
     line-height: 1.4;
