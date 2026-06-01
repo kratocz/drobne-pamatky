@@ -105,16 +105,6 @@ find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
 
 # ── 3. Kopie souborů ──────────────────────────────────────────────────
 echo "─── kopie souborů ───"
-rsync -a \
-    "$REPO_ROOT/index.html" \
-    "$REPO_ROOT/src/" \
-    "$REPO_ROOT/assets/" \
-    "$REPO_ROOT/data/" \
-    "$REPO_ROOT/LICENSE" \
-    --include='src/***' \
-    .
-
-# rsync source kódu (rsync neumí flat copy adresáře do flat copy, použij explicit)
 mkdir -p src assets data
 rsync -a "$REPO_ROOT/src/" src/
 rsync -a "$REPO_ROOT/assets/" assets/
