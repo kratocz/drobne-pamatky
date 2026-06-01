@@ -1,0 +1,75 @@
+name: Sync code → gh-pages
+
+# Auto-promotion code-only změn (index.html, src/, assets/, LICENSE) z main do
+# gh-pages bez nutnosti ručního `bash scripts/deploy.sh`. Data v gh-pages
+# (data/details/, data/thumbs/, data/pamatky.geojson, …) zůstávají netknutá –
+# refresh dat dělá samostatně ruční snapshot pipeline.
+#
+# Trigger: push do main, ale jen pokud se změnily code soubory (paths filter).
+# Pokud se nezměnily, job se vůbec nespustí – nezbytečné runy.
+#
+# Pozn.: tento workflow přidává commity do gh-pages, čímž rozbíjí orphan
+# strategii deploy.sh (force-push s 1 commitem). To je OK – další úplný
+# snapshot přes deploy.sh historii zase vyresetuje, mezitím se akumulují
+# malé code-only commity (~kB) které nezvětšují repo size znatelně.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'src/**'
+      - 'assets/**'
+      - 'LICENSE'
+      - '.github/workflows/sync-code-to-pages.yml'
+
+# Smyčce se vyhneme: tento job pushuje do gh-pages, ne do main → re-trigger
+# nehrozí. Pokud by si někdo workflow upravil tak, že pushuje do main,
+# přidat `if: github.actor != 'github-actions[bot]'` jako safety.
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-code-to-pages
+  cancel-in-progress: false  # nechceme rušit běžící sync
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main
+
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: pages
+
+      - name: Sync code soubory (data ponechány)
+        run: |
+          set -euo pipefail
+          cp main/index.html pages/
+          cp main/LICENSE pages/
+          rsync -a --delete main/src/ pages/src/
+          rsync -a --delete main/assets/ pages/assets/
+
+      - name: Commit & push (pokud se něco změnilo)
+        working-directory: pages
+        run: |
+          set -euo pipefail
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name  "github-actions[bot]"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Žádné code změny vůči gh-pages – nic ke commitu."
+          else
+            main_sha=$(git -C ../main rev-parse --short HEAD)
+            git commit -m "Auto-sync code z main $main_sha"
+            git push
+            echo "✓ gh-pages aktualizováno."
+          fi
