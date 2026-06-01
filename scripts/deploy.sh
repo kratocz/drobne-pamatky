@@ -95,13 +95,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
-git worktree add --detach "$WORKTREE" >/dev/null
+git worktree add --detach "$WORKTREE"
 cd "$WORKTREE"
 
-# Switch na orphan branch (žádná historie = repo size stabilní)
-git checkout --orphan gh-pages-deploy >/dev/null 2>&1
-# Smazat všechno (kromě .git)
+# Switch na orphan branch (žádná historie = repo size stabilní).
+# Random suffix, aby nedošlo ke kolizi pokud branch zbyl z předchozího (failed) běhu.
+ORPHAN_BRANCH="gh-pages-deploy-$(date +%s)"
+git checkout --orphan "$ORPHAN_BRANCH"
+# Smazat všechno (kromě .git) – po `git checkout --orphan` je index čistý,
+# ale working tree obsahuje stále soubory z původního commitu.
 find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+git rm --cached -r . >/dev/null 2>&1 || true
 
 # ── 3. Kopie souborů ──────────────────────────────────────────────────
 echo "─── kopie souborů ───"
@@ -128,7 +132,11 @@ git add -A
 git commit -q -m "Deploy $(date -u +%Y-%m-%dT%H:%M:%SZ)" \
                 -m "Source: main $main_sha"
 
-git push -f origin HEAD:gh-pages
+git push -f origin "HEAD:gh-pages"
+
+# Smazat lokální orphan branch (worktree cleanup ho jinak nesmaže)
+cd "$REPO_ROOT"
+git branch -D "$ORPHAN_BRANCH" >/dev/null 2>&1 || true
 
 # ── 5. Hotovo ─────────────────────────────────────────────────────────
 echo
