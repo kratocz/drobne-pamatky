@@ -145,7 +145,38 @@ Když zmizí kterákoli z vrstev, ostatní dvě stačí na rekonstrukci celku (p
 
 **Zdrojové fotky pro detail view:** link do popupu „**Stáhnout v plné kvalitě** (max 1200 px, Zenodo DOI: …)" → uživatel jde na L2 pro zoom-in a tisk.
 
-**Vlastní doména:** v plánu napojit `drobnepamatky.cz/` na GH Pages (po dohodě s autory původního webu), aby URL přežilo migrace mezi hostery.
+**Vlastní doména:** v plánu napojit `drobnepamatky.cz/` na GH Pages (po dohodě s autory původního webu), aby URL přežilo migrace mezi hostery. Setup viz [`cloudflare-setup.md`](cloudflare-setup.md).
+
+### L1 – Deploy strategie
+
+**Strategie B: `main` = code, `gh-pages` = data (orphan force-push)** ← zvolena 2026-06-01.
+
+Repo má dva branche s odlišnou rolí:
+
+| Branch | Role | Velikost | Update |
+|---|---|---|---|
+| `main` | dev / source of truth pro **kód a dokumentaci** | < 5 MB (žádná velká data) | normální commit/PR workflow |
+| `gh-pages` | prod / **deploy artifact** s aktuálním snapshotem dat | **~900 MB** (115 k AVIF + 15 detail bucketů + master + lookups + search index) | `scripts/deploy.sh` force-push, **orphan branch** – žádná historie, repo size stabilní |
+
+**Mechanismus deploye:** [`scripts/deploy.sh`](../scripts/deploy.sh) přes `git worktree --detach` + `git checkout --orphan` + `git push -f origin HEAD:gh-pages`. Historie v gh-pages se nehromadí – kanonickou historii verzí drží **L2 (Zenodo s concept DOI)**.
+
+#### Proč ne varianta C (Pages Actions artifact)?
+
+Moderní GitHub Pages podporuje deploy přes `actions/upload-pages-artifact` + `actions/deploy-pages` (bez `gh-pages` branche). Pro **náš konkrétní case to ale není vhodné**:
+
+| Limit | Hodnota | Náš stav | Riziko |
+|---|---|---|---|
+| Pages artifact size | **1 GB official** | tar.gz ~650 MB | rezerva 35 %, ale s růstem archivu (~50 MB/rok) za 3–5 let přesáhneme |
+| Deploy unpack timeout | **10 min** na unpack tarball na Pages backend | ~116 k souborů (115 k AVIF + 15 JSON + ostatní) | malé soubory pomalý per-file unpack, **na hraně 10-min timeout** |
+| Build čas Actions runner | 4 vCPU `ubuntu-latest` | thumbnail batch lokálně 28.6 min (M1 Pro 10-core) → odhad **~2 hod v Actions** | OK pro public repo (zdarma), ale dlouhý dev cycle |
+
+**Závěr:** varianta C (Pages Actions artifact) dává smysl pro menší sites (< 500 MB, < 10 k souborů). Pro naše 893 MB / 116 k souborů je **varianta B (gh-pages branch) bezpečnější** – Pages serveruje přímo z git stromu, žádný unpack-timeout, push trvá pár minut bez backend deadline. Repo size zůstává stabilní díky orphan force-push.
+
+#### Cloudflare před Pages (volitelné, pro vyšší návštěvnost)
+
+Bandwidth limit GitHub Pages je **100 GB/měsíc** soft → s naším avg payload ~3.5 MB / unikátní návštěvu vychází **~28 k unikátních / měsíc**. Pro běžný provoz dostatečné, pro „viral" pozornost (článek, ČT) nedostačuje. **Cloudflare Free** před Pages řeší: 95 % cache hit ratio → efektivně neomezený bandwidth + brotli + DDoS protection + free TLS.
+
+Setup návod: [`cloudflare-setup.md`](cloudflare-setup.md). Trigger pro implementaci je vlastní doména (otevřená otázka #5).
 
 ## L2 – Zenodo dataset
 
