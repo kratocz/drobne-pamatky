@@ -74,11 +74,11 @@ main {
 .popup-pamatka {
     font-size: 0.85rem;
     line-height: 1.4;
-    max-width: 240px;
+    max-width: 320px;
 }
 
 .popup-pamatka h3 {
-    margin: 0 0 0.25rem;
+    margin: 0 0 0.4rem;
     font-size: 1rem;
     color: #1f2937;
 }
@@ -86,16 +86,35 @@ main {
 .popup-pamatka .meta {
     color: #6b7280;
     font-size: 0.75rem;
-    margin: 0 0 0.4rem;
+    margin: 0 0 0.5rem;
+}
+
+.popup-pamatka .meta strong {
+    color: #1f2937;
+    font-weight: 600;
+}
+
+.popup-pamatka .thumb {
+    margin: 0 0 0.5rem;
+}
+
+.popup-pamatka .thumb img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    background: #e5e7eb;
 }
 
 .popup-pamatka .description {
     margin: 0 0 0.5rem;
 }
 
+.popup-pamatka .links {
+    margin: 0.25rem 0 0;
+}
+
 .popup-pamatka .source-link {
     display: inline-block;
-    margin-top: 0.25rem;
     font-size: 0.75rem;
     color: #d97706;
     text-decoration: none;

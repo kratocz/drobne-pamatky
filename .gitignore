@@ -22,3 +22,15 @@ build/
 *.sql.gz
 .env
 .env.local
+
+# Generované thumbnaily (AVIF 250 q50) – generuje scripts/snapshot/build_thumbnails.py
+# Lokální vývoj, později commitnout pro Pages deploy
+/data/thumbs/
+
+# Detail JSONy (319 MB, 81 735 souborů) - lokálně generované, pro Pages deploy se musí
+# rozhodnout zda commit (zvětší repo) nebo deploy přes Actions z out/
+/data/details/
+
+# Pre-built search index (14 MB) - generuje scripts/snapshot/build_search_index.js
+# Stejné dilema jako details/ - zatím gitignore
+/data/search-index.json
