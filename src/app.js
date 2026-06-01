@@ -5,12 +5,17 @@
     const CZ_ZOOM = 7;
     const MASTER_URL = 'data/pamatky.geojson';
     const LOOKUPS_URL = 'data/lookups.json';
+    const SEARCH_INDEX_URL = 'data/search-index.json';
     const DETAIL_URL = (nid) => `data/details/${nid}.json`;
     const THUMB_URL = (filepath) => {
         const m = filepath.match(/^files\/(\d{4})\/(.+)\.jpg$/i);
         return m ? `data/thumbs/${m[1]}/${m[2]}.avif` : null;
     };
     const ORIG_URL = (nid) => `https://www.drobnepamatky.cz/node/${nid}`;
+
+    const SEARCH_MIN_CHARS = 2;
+    const SEARCH_MAX_RESULTS = 12;
+    const SEARCH_DEBOUNCE_MS = 200;
 
     const statusEl = document.getElementById('status');
     const setStatus = (msg) => { statusEl.textContent = msg; };
@@ -63,6 +68,10 @@
     // Cache lookups & detail responses
     let lookups = { druh: {}, misto: {} };
     const detailCache = new Map();
+    // nid → L.Marker; pro search → flyTo + openPopup
+    const markersByNid = new Map();
+    // Master feature properties (nid → {n, d, lat, lon}) – pro search results display
+    const propsByNid = new Map();
 
     const buildMistoCesta = (mistoTermy) => {
         // Z misto_termy (pole tids) postavit hierarchii: ku → obec → okres → kraj.
@@ -148,7 +157,16 @@
         lookups = lk;
 
         const layer = L.geoJSON(geo, {
-            pointToLayer: (_, latlng) => L.marker(latlng),
+            pointToLayer: (feature, latlng) => {
+                const marker = L.marker(latlng);
+                const props = feature.properties || {};
+                markersByNid.set(props.i, marker);
+                propsByNid.set(props.i, {
+                    n: props.n, d: props.d,
+                    lat: latlng.lat, lon: latlng.lng,
+                });
+                return marker;
+            },
             onEachFeature: (feature, lyr) => {
                 const props = feature.properties || {};
                 lyr.bindTooltip(props.n || '?', { direction: 'top', offset: [0, -10] });
@@ -167,8 +185,161 @@
         const druhyCount = Object.keys(lookups.druh).length;
         const mistaCount = Object.keys(lookups.misto).length;
         setStatus(`${count.toLocaleString('cs-CZ')} památek · ${druhyCount} druhů · ${mistaCount.toLocaleString('cs-CZ')} správních jednotek. Zdroj: drobnepamatky.cz`);
+
+        initSearch();
     }).catch((err) => {
         console.error('Chyba načítání:', err);
         setStatus(`Nelze načíst data: ${err}`);
     });
+
+    // ===== Search (lazy load search-index.json při prvním keystroku) =====
+
+    let miniSearch = null;
+    let miniSearchLoading = null;
+    let lastQuery = '';
+    let focusedIdx = -1;
+
+    const inputEl = document.getElementById('search-input');
+    const resultsEl = document.getElementById('search-results');
+
+    const showResultsMsg = (msg) => {
+        resultsEl.innerHTML = `<div class="search-results-status">${escapeHtml(msg)}</div>`;
+        resultsEl.hidden = false;
+    };
+
+    const hideResults = () => {
+        resultsEl.hidden = true;
+        resultsEl.innerHTML = '';
+        focusedIdx = -1;
+    };
+
+    const loadSearchIndex = () => {
+        if (miniSearch) return Promise.resolve(miniSearch);
+        if (miniSearchLoading) return miniSearchLoading;
+        miniSearchLoading = fetch(SEARCH_INDEX_URL)
+            .then(r => r.ok ? r.text() : Promise.reject(`HTTP ${r.status}`))
+            .then(text => {
+                const opts = {
+                    fields: ['n', 'd', 'm'],
+                    searchOptions: { boost: { n: 2, m: 1.5 }, fuzzy: 0.2, prefix: true },
+                };
+                miniSearch = window.MiniSearch.loadJSON(text, opts);
+                return miniSearch;
+            })
+            .catch(err => {
+                miniSearchLoading = null;
+                throw err;
+            });
+        return miniSearchLoading;
+    };
+
+    const renderResults = (hits) => {
+        if (!hits.length) {
+            showResultsMsg('Nic nenalezeno');
+            return;
+        }
+        const rows = hits.slice(0, SEARCH_MAX_RESULTS).map((h, idx) => {
+            const props = propsByNid.get(h.id) || {};
+            const druh = lookups.druh[props.d] || '';
+            return `<div class="search-result" data-nid="${h.id}" data-idx="${idx}">
+                <div class="name">${escapeHtml(props.n || '(bez názvu)')}</div>
+                <div class="sub">${escapeHtml(druh)}</div>
+            </div>`;
+        }).join('');
+        resultsEl.innerHTML = rows;
+        resultsEl.hidden = false;
+        focusedIdx = -1;
+    };
+
+    const goToMarker = (nid) => {
+        const marker = markersByNid.get(Number(nid));
+        if (!marker) return;
+        const latlng = marker.getLatLng();
+        // Pokud je v clusteru, otevři přes parent group
+        if (cluster.hasLayer(marker)) {
+            cluster.zoomToShowLayer(marker, () => {
+                marker.openPopup();
+            });
+        } else {
+            map.flyTo(latlng, Math.max(map.getZoom(), 14), { duration: 0.6 });
+            marker.openPopup();
+        }
+    };
+
+    const runSearch = (q) => {
+        if (!miniSearch) return;
+        const hits = miniSearch.search(q);
+        renderResults(hits);
+    };
+
+    let debounceTimer = null;
+    inputEl.addEventListener('input', () => {
+        const q = inputEl.value.trim();
+        clearTimeout(debounceTimer);
+        if (q.length < SEARCH_MIN_CHARS) {
+            hideResults();
+            return;
+        }
+        if (q === lastQuery) return;
+        lastQuery = q;
+
+        debounceTimer = setTimeout(async () => {
+            showResultsMsg('Hledám…');
+            try {
+                await loadSearchIndex();
+                runSearch(q);
+            } catch (err) {
+                console.error('Search index error:', err);
+                showResultsMsg(`Chyba: ${err}`);
+            }
+        }, SEARCH_DEBOUNCE_MS);
+    });
+
+    resultsEl.addEventListener('click', (e) => {
+        const item = e.target.closest('.search-result');
+        if (!item) return;
+        goToMarker(item.dataset.nid);
+        hideResults();
+        inputEl.blur();
+    });
+
+    inputEl.addEventListener('keydown', (e) => {
+        const items = resultsEl.querySelectorAll('.search-result');
+        if (e.key === 'Escape') { hideResults(); inputEl.blur(); return; }
+        if (!items.length) return;
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            focusedIdx = (focusedIdx + 1) % items.length;
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            focusedIdx = (focusedIdx - 1 + items.length) % items.length;
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            const target = items[focusedIdx >= 0 ? focusedIdx : 0];
+            if (target) {
+                goToMarker(target.dataset.nid);
+                hideResults();
+                inputEl.blur();
+            }
+            return;
+        } else {
+            return;
+        }
+        items.forEach(it => it.classList.remove('focused'));
+        items[focusedIdx]?.classList.add('focused');
+        items[focusedIdx]?.scrollIntoView({ block: 'nearest' });
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!resultsEl.contains(e.target) && e.target !== inputEl) {
+            hideResults();
+        }
+    });
+
+    const initSearch = () => {
+        // pre-warm searchindex po malé idle (lepší UX, ale nezdrží initial paint)
+        if ('requestIdleCallback' in window) {
+            requestIdleCallback(() => loadSearchIndex().catch(() => {}));
+        }
+    };
 })();
