@@ -31,8 +31,14 @@
     const SEARCH_MAX_RESULTS = 12;
     const SEARCH_DEBOUNCE_MS = 200;
 
+    // Velikost bodů v pixelech (na všech zoomech – glify nepodporuje per-zoom size out of box).
+    const POINT_SIZE = 6;
+    // Pixelová tolerance pro click hit-test (čím větší, tím snáz se klikne).
+    const POINT_SENSITIVITY = 2.0;
+
     // ===== Marker ikony per kategorie druhu =====
     // 5 vizuálně odlišených kategorií + default. Mapping z 31 druhů (term_data vid=5).
+    // SVG ikony zachované jen pro legendu + active marker overlay.
     const KATEGORIE = {
         kriz:     { color: '#b91c1c', label: 'Kříže',           svg: 'M10 3h4v6h6v4h-6v8h-4v-8H4V9h6z' },
         bozimuka: { color: '#c2410c', label: 'Boží muka, sloupy', svg: 'M11 2h2v3l2 1v2l-2 1v13h-2V9L9 8V6l2-1z' },
@@ -48,33 +54,21 @@
         19418: 'socha',    19414: 'socha',    19415: 'socha', 19411: 'socha',
         19427: 'socha',    19487: 'socha',    19482: 'socha', 19485: 'socha',      // Socha, Pomník, Pomník padlým, Památník, Plastika, Reliéf, Pamětní deska, Krajinné umění
         19404: 'kamen',    19412: 'kamen',    19409: 'kamen', 19488: 'kamen',      // Hraniční k., Památný k., Menhir, Památná dlažba
-        // ostatní druhy (Altán, Dopravní p., Hodiny, Kašna, Něco jiného, Obrázek,
-        // Technická p., Nenalezena, Nevybráno, Neznámý) → default
     };
 
-    const iconCache = new Map();  // kategorie key → L.DivIcon (recycled per kat)
-    const buildIcon = (druhTid) => {
-        const kat = DRUH_TO_KATEGORIE[druhTid] || 'default';
-        if (iconCache.has(kat)) return iconCache.get(kat);
-        const cfg = KATEGORIE[kat];
-        const html = `<div class="dp-marker" style="background:${cfg.color}">
-            <svg viewBox="0 0 24 24"><path d="${cfg.svg}"/></svg></div>`;
-        const icon = L.divIcon({
-            html,
-            className: 'dp-marker-wrapper',
-            iconSize: [28, 28],
-            iconAnchor: [14, 28],
-            popupAnchor: [0, -28],
-            tooltipAnchor: [0, -28],
-        });
-        iconCache.set(kat, icon);
-        return icon;
+    // hexToRgb („#b91c1c" → {r:0.725, g:0.110, b:0.110}) pro glify (chce 0-1 floaty).
+    const hexToGlifyColor = (hex) => {
+        const n = parseInt(hex.slice(1), 16);
+        return { r: ((n >> 16) & 0xff) / 255, g: ((n >> 8) & 0xff) / 255, b: (n & 0xff) / 255 };
     };
+    // Předpřipravené glify barvy per kat (recycle, ať nealokujeme per-frame).
+    const KAT_COLORS = Object.fromEntries(
+        Object.entries(KATEGORIE).map(([k, v]) => [k, hexToGlifyColor(v.color)])
+    );
 
     const statusEl = document.getElementById('status');
     const setStatus = (msg) => { statusEl.textContent = msg; };
 
-    // Nenápadný toast pruh nahoře – auto-fade po několika sekundách.
     const toastEl = document.getElementById('toast');
     let toastTimer = null;
     const showToast = (message, durationMs = 4500) => {
@@ -103,6 +97,8 @@
         minZoom: 6,
         maxZoom: 19,
         zoomControl: true,
+        // Preferuj canvas pro overlay markery (active highlight) – mírně rychlejší než SVG.
+        preferCanvas: true,
     });
 
     const baseLayers = {
@@ -124,27 +120,7 @@
     };
     baseLayers['OpenStreetMap'].addTo(map);
 
-    const cluster = L.markerClusterGroup({
-        showCoverageOnHover: false,
-        // Původní agresivnější clustering: na nižších zoomech velké shluky,
-        // jednotlivé markery až street-level. Méně agresivní hodnoty (40/13)
-        // způsobovaly viditelné seknutí kvůli vykreslování tisíců DivIcon
-        // SVG markerů najednou.
-        maxClusterRadius: 60,
-        disableClusteringAtZoom: 16,
-        chunkedLoading: true,
-    });
-    map.addLayer(cluster);
-
-    // Když cluster přeskupí markery (zoom/pan), DOM elementy se obnoví.
-    // Re-aplikuj .marker-active na aktivně vybraný marker.
-    cluster.on('animationend', () => {
-        if (activeMarker) {
-            activeMarker.getElement()?.classList.add('marker-active');
-        }
-    });
-
-    L.control.layers(baseLayers, { 'Drobné památky': cluster }, { position: 'topright' }).addTo(map);
+    L.control.layers(baseLayers, {}, { position: 'topright' }).addTo(map);
     L.control.scale({ imperial: false, position: 'bottomleft' }).addTo(map);
 
     // Legenda kategorií (5 + default) – Leaflet control, bottomright
@@ -162,10 +138,8 @@
             div.innerHTML =
                 `<button class="legend-toggle" type="button" aria-label="Sbalit legendu">Druhy památek</button>` +
                 `<div class="legend-body">${rows}</div>`;
-            // Prevent map drag/zoom při interakci s legendou
             L.DomEvent.disableClickPropagation(div);
             L.DomEvent.disableScrollPropagation(div);
-            // Toggle collapse on title click
             const toggle = div.querySelector('.legend-toggle');
             toggle.addEventListener('click', () => div.classList.toggle('collapsed'));
             return div;
@@ -173,19 +147,71 @@
     });
     new Legend().addTo(map);
 
-    // Cache lookups & bucket responses (bucket = dict {nid: detail} per kraj_tid)
-    let lookups = { druh: {}, misto: {}, users: {} };
-    const bucketCache = new Map();         // kraj_tid → Promise<bucket dict>
-    const detailCache = new Map();          // nid → detail (cached po prvním přístupu)
-    // nid → L.Marker; pro search → flyTo + openPopup
-    const markersByNid = new Map();
-    // Aktuálně zvýrazněný marker (sidebar otevřen pro tuto památku)
-    let activeMarker = null;
-    // Master feature properties (nid → {n, d, lat, lon}) – pro search results display
-    const propsByNid = new Map();
+    // ===== Datové struktury =====
+    //
+    // Místo 81k JS objektů (každý ~200 B headeru + LatLng + properties) držíme:
+    //   - coords: Float32Array [lat0, lng0, lat1, lng1, ...]    (8 B per bod)
+    //   - katIdx: Uint8Array (0..5, index do KATEGORIE)          (1 B per bod)
+    //   - krajTid: Uint8Array (0..14, kraj_tid)                  (1 B per bod)
+    //   - nids:   Int32Array  [nid0, nid1, ...]                  (4 B per bod)
+    //   - names:  Array<string> per bod                          (jediná velká alokace)
+    //   - nidToIdx: Map<nid, idx>  pro rychlé lookups z routingu/search
+    //
+    // Celkem ~ 14 B + jméno per bod = ~1.1 MB binární + ~5 MB jmen = ~6 MB
+    // místo původních ~80 MB pro 81k Leaflet markerů s DivIcony.
+
+    let coords = null;
+    let katIdx = null;
+    let krajTid = null;
+    let nids = null;
+    let names = null;
+    const nidToIdx = new Map();
+    // glify points instance (pro pozdější vykreslení active highlight + filter)
+    let glifyPoints = null;
+    // Pole bodů [[lat, lng], ...] pro glify – glify si pamatuje referenci a iteruje při click hit-test.
+    let glifyData = null;
+    // Active highlight overlay (jediný marker, nahrazuje classlist trick)
+    let activeOverlay = null;
     let activeNid = null;
     let routeCloseTimer = null;
     let dataReady = false;
+    // Hover tooltip – jediný leaflet tooltip, přepojený na hover events.
+    const hoverTooltip = L.tooltip({
+        direction: 'top',
+        offset: [0, -8],
+        opacity: 0.95,
+        pane: 'tooltipPane',
+    });
+    let hoverTooltipOpen = false;
+
+    // Filter z searche: Set<nid> nebo null
+    let searchFilter = null;
+
+    // Cache lookups & bucket responses
+    let lookups = { druh: {}, misto: {}, users: {} };
+    const bucketCache = new Map();
+    const detailCache = new Map();
+
+    const katIndexFromDruh = (druhTidValue) => {
+        const kat = DRUH_TO_KATEGORIE[druhTidValue] || 'default';
+        return Object.keys(KATEGORIE).indexOf(kat);
+    };
+    const katKeyByIndex = Object.keys(KATEGORIE);
+
+    // Props lookup pro search/routing (lazy – složí se z arrays)
+    const propsByNid = (nid) => {
+        const idx = nidToIdx.get(Number(nid));
+        if (idx === undefined) return null;
+        return {
+            i: nids[idx],
+            n: names[idx],
+            d: undefined,  // druh_tid se v glify cestě nepoužívá – kategorie už máme
+            k: krajTid[idx],
+            lat: coords[idx * 2],
+            lon: coords[idx * 2 + 1],
+            katIdx: katIdx[idx],
+        };
+    };
 
     const normalizeRoutePath = (value) => {
         const rawPath = String(value || '/').split(/[?#]/)[0];
@@ -214,7 +240,7 @@
         .replace(/-+$/g, '');
 
     const pamatkaPath = (nid) => {
-        const props = propsByNid.get(Number(nid));
+        const props = propsByNid(nid);
         const slug = slugify(props?.n);
         return `${APP_BASE_PATH}pamatka/${Number(nid)}${slug ? `-${slug}` : ''}`;
     };
@@ -236,7 +262,7 @@
     };
 
     const updateDocumentTitle = (nid) => {
-        const name = nid ? propsByNid.get(Number(nid))?.n : null;
+        const name = nid ? propsByNid(nid)?.n : null;
         document.title = name ? `${name} – Drobné památky` : 'Drobné památky – mapa';
     };
 
@@ -246,35 +272,16 @@
         routeCloseTimer = null;
     };
 
-    const scheduleMapRouteAfterPopupClose = () => {
-        clearRouteCloseTimer();
-        routeCloseTimer = setTimeout(() => {
-            routeCloseTimer = null;
-            if (activeNid === null) {
-                updateDocumentTitle(null);
-                setMapRoute();
-            }
-        }, 0);
-    };
-
     const buildMistoCesta = (mistoTermy) => {
-        // Z misto_termy (pole tids) postavit hierarchii: ku → obec → okres → kraj.
-        // Použijeme parent_tid mapping z lookups: kraj má parent_tid=0.
         if (!mistoTermy || !mistoTermy.length) return '';
-
-        // Najít kraj (parent_tid === 0) a postavit hierarchii odzhora.
-        const tids = new Set(mistoTermy);
         let kraj = null;
         for (const tid of mistoTermy) {
             const entry = lookups.misto[tid];
             if (entry && entry.parent_tid === 0) { kraj = tid; break; }
         }
         if (!kraj) {
-            // fallback: prostě seznam názvů
             return mistoTermy.map(t => lookups.misto[t]?.name).filter(Boolean).join(' · ');
         }
-
-        // Sestavit chain od kraje dolů: kraj → okres → obec → ku
         const chain = [];
         const collectChildren = (parentTid) => {
             for (const tid of mistoTermy) {
@@ -299,12 +306,13 @@
 
     const buildDetailHtml = (props, detail) => {
         const title = props.n || 'Bez názvu';
-        const druh = lookups.druh[props.d] || '';
+        // Při bucketu máme druh_tid v detailu (lookup do druh names).
+        const druhTidVal = detail?.druh_tid;
+        const druh = druhTidVal ? (lookups.druh[druhTidVal] || '') : '';
 
         if (!detail) {
             return `
                 <h2>${escapeHtml(title)}</h2>
-                <p class="detail-meta">${druh ? `<strong>${escapeHtml(druh)}</strong>` : ''}</p>
                 <p class="loading">Načítám detail…</p>
             `;
         }
@@ -348,7 +356,6 @@
             meta.nkpid && `<div><strong>NPÚ ID:</strong> ${escapeHtml(String(meta.nkpid))}</div>`,
             meta.author_uid && (() => {
                 const authorName = lookups.users?.[meta.author_uid];
-                // Profily na drobnepamatky.cz nejsou veřejné (login wall) – jen text, žádný odkaz.
                 return authorName
                     ? `<div><strong>Autor:</strong> ${escapeHtml(authorName)}</div>`
                     : `<div><strong>Autor uid:</strong> ${escapeHtml(String(meta.author_uid))}</div>`;
@@ -387,21 +394,43 @@
         });
     };
 
+    // ===== Active marker highlight =====
+    // Místo classlist na DivIconu (která už v glify světě neexistuje)
+    // zobrazíme jeden klasický L.marker s teardrop ikonou (zvětšenou).
+    const activeIconCache = new Map();
+    const buildActiveIcon = (idxKat) => {
+        if (activeIconCache.has(idxKat)) return activeIconCache.get(idxKat);
+        const katKey = katKeyByIndex[idxKat] || 'default';
+        const cfg = KATEGORIE[katKey];
+        const html = `<div class="dp-marker dp-marker-active" style="background:${cfg.color}">
+            <svg viewBox="0 0 24 24"><path d="${cfg.svg}"/></svg></div>`;
+        const icon = L.divIcon({
+            html,
+            className: 'dp-marker-wrapper',
+            iconSize: [36, 36],
+            iconAnchor: [18, 36],
+            popupAnchor: [0, -36],
+        });
+        activeIconCache.set(idxKat, icon);
+        return icon;
+    };
+
     const setActiveMarker = (nid) => {
-        // Odstranit highlight ze stávajícího aktivního markeru
-        if (activeMarker) {
-            activeMarker.getElement()?.classList.remove('marker-active');
-            activeMarker = null;
+        if (activeOverlay) {
+            map.removeLayer(activeOverlay);
+            activeOverlay = null;
         }
         if (nid === null || nid === undefined) return;
-        const marker = markersByNid.get(Number(nid));
-        if (!marker) return;
-        activeMarker = marker;
-        // Force opacity 1 (override search-filter zešednutí)
-        marker.setOpacity(1);
-        // Element existuje jen pokud je marker právě vykreslen (mimo cluster).
-        // Pokud je v clusteru, class se doplní v `animationend` listeneru níže.
-        marker.getElement()?.classList.add('marker-active');
+        const props = propsByNid(nid);
+        if (!props) return;
+        const icon = buildActiveIcon(props.katIdx);
+        activeOverlay = L.marker([props.lat, props.lon], {
+            icon,
+            interactive: false,  // neblokovat click na glify pod ním
+            keyboard: false,
+            zIndexOffset: 1000,
+        });
+        activeOverlay.addTo(map);
     };
 
     const openDetailPanel = async (props) => {
@@ -410,13 +439,11 @@
         updateDocumentTitle(props.i);
         setActiveMarker(props.i);
 
-        // Loading state hned
         panelContentEl.innerHTML = buildDetailHtml(props, null);
         panelEl.classList.add('open');
         panelEl.setAttribute('aria-hidden', 'false');
 
         const detail = await loadDetail(props.i, props.k);
-        // Pokud user mezitím zavřel panel nebo otevřel jiný, neaktualizuj content
         if (activeNid !== Number(props.i)) return;
         if (detail) {
             panelContentEl.innerHTML = buildDetailHtml(props, detail);
@@ -442,35 +469,50 @@
         }
     });
 
-    const loadBucket = (krajTid) => {
-        if (bucketCache.has(krajTid)) return bucketCache.get(krajTid);
-        const promise = fetch(BUCKET_URL(krajTid))
+    const loadBucket = (krajTidVal) => {
+        if (bucketCache.has(krajTidVal)) return bucketCache.get(krajTidVal);
+        const promise = fetch(BUCKET_URL(krajTidVal))
             .then(r => r.ok ? r.json() : Promise.reject(`HTTP ${r.status}`))
             .then(bucket => {
-                // přimíchat do detailCache pro instant retrieval
                 for (const [nid, detail] of Object.entries(bucket)) {
                     detailCache.set(Number(nid), detail);
                 }
                 return bucket;
             })
             .catch(err => {
-                bucketCache.delete(krajTid);
+                bucketCache.delete(krajTidVal);
                 throw err;
             });
-        bucketCache.set(krajTid, promise);
+        bucketCache.set(krajTidVal, promise);
         return promise;
     };
 
-    const loadDetail = async (nid, krajTid) => {
+    const loadDetail = async (nid, krajTidVal) => {
         if (detailCache.has(nid)) return detailCache.get(nid);
         try {
-            await loadBucket(krajTid || 0);
+            await loadBucket(krajTidVal || 0);
             return detailCache.get(nid) || null;
         } catch (err) {
-            console.warn(`Bucket pro kraj ${krajTid} (památka ${nid}) selhal:`, err);
+            console.warn('Bucket pro kraj %s (památka %s) selhal:', krajTidVal, nid, err);
             return null;
         }
     };
+
+    // ===== Glify color callback =====
+    // Vrací barvu per bod. Když je searchFilter aktivní a bod není v něm, vrátíme
+    // ztlumenou šedou. Glify volá tuto funkci 1× per bod při kreslení (v rAF tickem),
+    // takže to není perf problém.
+    const colorForIndex = (index) => {
+        if (searchFilter && !searchFilter.has(nids[index])) {
+            return { r: 0.7, g: 0.7, b: 0.7 };  // ztlumené šedé pro non-match
+        }
+        return KAT_COLORS[katKeyByIndex[katIdx[index]]];
+    };
+    // Opacity per bod (glify ale chce jednu globální – viz níže). Místo opacity
+    // používáme šedou; je to vizuálně podobné a glify defaultně podporuje jen
+    // jednu globální opacity. Při filteru tedy bod jen zešediví.
+
+    // ===== Inicializace =====
 
     setStatus('Načítám lookup tabulky a master GeoJSON…');
 
@@ -480,38 +522,92 @@
     ]).then(([lk, geo]) => {
         lookups = lk;
 
-        const layer = L.geoJSON(geo, {
-            pointToLayer: (feature, latlng) => {
-                const props = feature.properties || {};
-                const marker = L.marker(latlng, { icon: buildIcon(props.d) });
-                markersByNid.set(props.i, marker);
-                propsByNid.set(props.i, {
-                    i: props.i, n: props.n, d: props.d, k: props.k,
-                    lat: latlng.lat, lon: latlng.lng,
-                });
-                return marker;
+        const features = geo.features || [];
+        const n = features.length;
+
+        // Alokuj TypedArrays
+        coords = new Float32Array(n * 2);
+        katIdx = new Uint8Array(n);
+        krajTid = new Uint8Array(n);
+        nids = new Int32Array(n);
+        names = new Array(n);
+        glifyData = new Array(n);
+
+        for (let i = 0; i < n; i++) {
+            const f = features[i];
+            const c = f.geometry?.coordinates;
+            const p = f.properties || {};
+            // GeoJSON má [lng, lat]; glify points přijímá [lat, lng] (default coordinate order).
+            const lng = c[0];
+            const lat = c[1];
+            coords[i * 2]     = lat;
+            coords[i * 2 + 1] = lng;
+            katIdx[i] = katIndexFromDruh(p.d);
+            krajTid[i] = p.k || 0;
+            nids[i] = p.i;
+            names[i] = p.n || '';
+            nidToIdx.set(p.i, i);
+            glifyData[i] = [lat, lng];
+        }
+        // Originální geo již dál nepotřebujeme – nechť GC ho uvolní.
+        // (features array drží referenci přes closure features – pojistka by byla
+        //  ji explicitně null-ovat, ale po opuštění této then() funkce zmizí sama.)
+
+        // ===== Glify points layer =====
+        glifyPoints = L.glify.points({
+            map,
+            data: glifyData,
+            size: POINT_SIZE,
+            opacity: 0.85,
+            sensitivity: POINT_SENSITIVITY,
+            color: colorForIndex,
+            // Click hit-test: glify předá (e, point, xy) – point je [lat, lng], ale
+            // pro identifikaci konkrétního bodu musíme dohledat index. Glify
+            // bohužel v public API neposílá index přímo, takže ho najdeme přes
+            // referenci v glifyData (point === glifyData[idx]).
+            click: (e, point) => {
+                const idx = glifyData.indexOf(point);
+                if (idx < 0) return;
+                const nid = nids[idx];
+                const props = propsByNid(nid);
+                if (!props) return;
+                setPamatkaRoute(nid);
+                openDetailPanel(props);
+                return false;  // konzumuje event
             },
-            onEachFeature: (feature, lyr) => {
-                const props = feature.properties || {};
-                lyr.bindTooltip(props.n || '?', { direction: 'top', offset: [0, -10] });
-                lyr.on('click', () => {
-                    setPamatkaRoute(props.i);
-                    openDetailPanel(props);
-                });
+            hover: (e, point) => {
+                const idx = glifyData.indexOf(point);
+                if (idx < 0) return;
+                const name = names[idx] || '?';
+                const latlng = L.latLng(coords[idx * 2], coords[idx * 2 + 1]);
+                hoverTooltip.setLatLng(latlng).setContent(escapeHtml(name));
+                if (!hoverTooltipOpen) {
+                    hoverTooltip.addTo(map);
+                    hoverTooltipOpen = true;
+                }
             },
         });
-        cluster.addLayer(layer);
 
-        const count = geo.features?.length ?? 0;
+        // Click na mapě mimo bod → schovat tooltip (glify nemá hoverOff pro points).
+        map.on('click', () => {
+            if (hoverTooltipOpen) {
+                map.removeLayer(hoverTooltip);
+                hoverTooltipOpen = false;
+            }
+        });
+        map.on('mouseout', () => {
+            if (hoverTooltipOpen) {
+                map.removeLayer(hoverTooltip);
+                hoverTooltipOpen = false;
+            }
+        });
+
         const druhyCount = Object.keys(lookups.druh).length;
         const mistaCount = Object.keys(lookups.misto).length;
-        setStatus(`${count.toLocaleString('cs-CZ')} památek · ${druhyCount} druhů · ${mistaCount.toLocaleString('cs-CZ')} správních jednotek. Zdroj: drobnepamatky.cz`);
+        setStatus(`${n.toLocaleString('cs-CZ')} památek · ${druhyCount} druhů · ${mistaCount.toLocaleString('cs-CZ')} správních jednotek. Zdroj: drobnepamatky.cz`);
 
         dataReady = true;
         initSearch();
-        // Cluster po addLayer potřebuje 1 rAF tick na inicializaci bounds,
-        // jinak cluster.zoomToShowLayer při initial routing crashne na
-        // 'this._northEast is undefined'.
         requestAnimationFrame(() => {
             try {
                 if (!openRouteFromLocation({ replaceUrl: true }) && !currentRouteNid()) {
@@ -527,7 +623,7 @@
         setStatus(`Nelze načíst data: ${err}`);
     });
 
-    // ===== Search (lazy load search-index.json při prvním keystroku) =====
+    // ===== Search =====
 
     let miniSearch = null;
     let miniSearchLoading = null;
@@ -578,19 +674,10 @@
         return miniSearchLoading;
     };
 
-    // ===== Highlight markerů na mapě podle search =====
-
-    // Nastavit opacity všech markerů podle Set nidů (null = reset všech na 1)
+    // Aplikuje filter → glify překreslí s ztlumenou šedou pro non-match.
     const applyMarkerFilter = (highlightedNids) => {
-        if (highlightedNids === null) {
-            markersByNid.forEach(m => m.setOpacity(1));
-            return;
-        }
-        markersByNid.forEach((marker, nid) => {
-            // Aktivní marker (sidebar otevřený) zůstává vždy plně viditelný
-            const isActive = marker === activeMarker;
-            marker.setOpacity(isActive || highlightedNids.has(nid) ? 1 : 0.15);
-        });
+        searchFilter = highlightedNids;
+        if (glifyPoints) glifyPoints.render();  // re-evaluate color callback
     };
 
     const renderResults = (hits) => {
@@ -599,11 +686,12 @@
             return;
         }
         const rows = hits.slice(0, SEARCH_MAX_RESULTS).map((h, idx) => {
-            const props = propsByNid.get(h.id) || {};
-            const druh = lookups.druh[props.d] || '';
+            const props = propsByNid(h.id);
+            const katKey = props ? katKeyByIndex[props.katIdx] : 'default';
+            const druhLabel = KATEGORIE[katKey]?.label || '';
             return `<div class="search-result" data-nid="${h.id}" data-idx="${idx}">
-                <div class="name">${escapeHtml(props.n || '(bez názvu)')}</div>
-                <div class="sub">${escapeHtml(druh)}</div>
+                <div class="name">${escapeHtml(props?.n || '(bez názvu)')}</div>
+                <div class="sub">${escapeHtml(druhLabel)}</div>
             </div>`;
         }).join('');
         resultsEl.innerHTML = rows;
@@ -613,41 +701,19 @@
 
     const goToMarker = (nid, { updateUrl = true, replaceUrl = false } = {}) => {
         const normalizedNid = Number(nid);
-        const marker = markersByNid.get(normalizedNid);
-        if (!marker) return false;
+        const props = propsByNid(normalizedNid);
+        if (!props) return false;
 
         clearRouteCloseTimer();
         activeNid = normalizedNid;
         updateDocumentTitle(normalizedNid);
-        if (updateUrl) {
-            setPamatkaRoute(normalizedNid, { replace: replaceUrl });
-        }
+        if (updateUrl) setPamatkaRoute(normalizedNid, { replace: replaceUrl });
 
-        const latlng = marker.getLatLng();
-        const props = propsByNid.get(normalizedNid);
-        const openPanel = () => {
-            if (props) openDetailPanel(props);
-        };
-
-        // Cluster.zoomToShowLayer může selhat při initial state (bounds ještě
-        // nejsou dopočítané po addLayer). Fallback: flyTo + openDetailPanel
-        // s krátkým delayem aby Leaflet stihl rerender.
-        const useFlyTo = () => {
-            map.flyTo(latlng, Math.max(map.getZoom(), 16), { duration: 0.6 });
-            setTimeout(openPanel, 650);
-        };
-
-        try {
-            if (cluster.hasLayer(marker)) {
-                cluster.zoomToShowLayer(marker, openPanel);
-            } else {
-                map.flyTo(latlng, Math.max(map.getZoom(), 16), { duration: 0.6 });
-                openPanel();
-            }
-        } catch (err) {
-            console.warn('cluster.zoomToShowLayer failed, používám flyTo fallback:', err);
-            useFlyTo();
-        }
+        const latlng = L.latLng(props.lat, props.lon);
+        map.flyTo(latlng, Math.max(map.getZoom(), 16), { duration: 0.6 });
+        // Po animaci otevřít panel; flyTo timing je ~600 ms s easing, panel
+        // může jít hned (sidebar slide je nezávislý).
+        openDetailPanel(props);
         return true;
     };
 
@@ -658,7 +724,6 @@
         const opened = goToMarker(nid, { updateUrl: true, replaceUrl });
         if (!opened) {
             showToast(`Památka č. ${nid} v archivu není – zobrazuji mapu.`);
-            // Reset URL na mapu (jinak by reload znova spadl do stejné chyby)
             setMapRoute({ replace: true });
             updateDocumentTitle(null);
         }
@@ -667,26 +732,21 @@
 
     window.addEventListener('popstate', () => {
         if (!dataReady) return;
-
         const nid = currentRouteNid();
         if (nid) {
             goToMarker(nid, { updateUrl: false });
             return;
         }
-
-        // URL ukazuje na mapu (žádný nid) → zavři panel pokud je otevřený
         closeDetailPanel({ updateUrl: false });
     });
 
-    // Pre-warm bucket pro Středočeský kraj (nejvíc památek + první view obvykle pokrývá ČR)
-    // – tichá optimalizace, na first popup je už cache hot.
-    const PREWARM_KRAJ = 2;  // Středočeský
+    // Pre-warm bucket pro Středočeský kraj (nejvíc památek)
+    const PREWARM_KRAJ = 2;
 
     const runSearch = (q) => {
         if (!miniSearch) return;
         const hits = miniSearch.search(q);
         renderResults(hits);
-        // Highlight matching markerů na mapě (zešediv ostatní)
         applyMarkerFilter(new Set(hits.map(h => h.id)));
     };
 
@@ -696,7 +756,7 @@
         clearTimeout(debounceTimer);
         if (q.length < SEARCH_MIN_CHARS) {
             hideResults();
-            applyMarkerFilter(null);  // reset highlightu
+            applyMarkerFilter(null);
             return;
         }
         if (q === lastQuery) return;
@@ -763,7 +823,6 @@
     });
 
     const initSearch = () => {
-        // pre-warm searchindex po malé idle (lepší UX, ale nezdrží initial paint)
         if ('requestIdleCallback' in window) {
             requestIdleCallback(() => loadSearchIndex().catch(() => {}));
             requestIdleCallback(() => loadBucket(PREWARM_KRAJ).catch(() => {}));

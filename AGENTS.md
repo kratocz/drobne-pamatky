@@ -4,13 +4,21 @@ Pokyny pro AI kódovací agenty pracující v tomto repozitáři (Claude Code, C
 
 ## Project overview
 
-Statická archivační verze webu [drobnepamatky.cz](https://www.drobnepamatky.cz/) – komunitní databáze drobných sakrálních a profánních památek v ČR. Hostováno na GitHub Pages, data v GeoJSON, mapa pomocí Leaflet + Leaflet.markercluster.
+Statická archivační verze webu [drobnepamatky.cz](https://www.drobnepamatky.cz/) – komunitní databáze drobných sakrálních a profánních památek v ČR. Hostováno na GitHub Pages, data v GeoJSON, mapa pomocí Leaflet + Leaflet.glify (WebGL renderer, který kreslí všech ~81k bodů najednou bez clusteringu).
 
 Dlouhodobá vize: stát se veřejným frontendem původního webu – data periodicky exportovaná z Drupalu na VPS sem do statického repa.
 
 ## Setup
 
-Žádné závislosti k instalaci – všechny knihovny (Leaflet, markercluster) se načítají z CDN přes `unpkg.com` v `index.html`.
+Žádné závislosti k instalaci pro běh webu – všechny knihovny (Leaflet, Leaflet.glify, MiniSearch) se načítají z CDN přes `unpkg.com` / `cdn.jsdelivr.net` v `index.html`. Build pipeline pro export dat má vlastní `package.json` v `scripts/snapshot/`.
+
+## Rendering pipeline
+
+- `data/pamatky.geojson` se načte jednorázově (`fetch` + `JSON.parse`).
+- Features se převedou do TypedArrays (`coords` Float32Array, `katIdx` Uint8Array, `nids` Int32Array, `names` Array<string>) – heap ~6 MB místo ~80 MB pro 81k Leaflet markerů.
+- Pole `[[lat, lng], …]` je předáno do `L.glify.points()`, který renderuje přes WebGL canvas v leaflet `overlayPane`.
+- `color` callback v glify vrací barvu per bod podle kategorie (z `KAT_COLORS` lookup); search filter to využívá k zešednutí ne-matching bodů.
+- Active marker (otevřený detail panel) je samostatný `L.marker` s teardrop DivIconou navrch glify canvasu.
 
 ## Run / build / test
 

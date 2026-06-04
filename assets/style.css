@@ -175,49 +175,35 @@ main {
     text-decoration: underline;
 }
 
-/* ===== Marker ikony per kategorie druhu ===== */
+/* ===== Marker (jen active overlay – běžné body kreslí WebGL přes leaflet.glify) ===== */
 .dp-marker-wrapper {
     background: transparent !important;
     border: none !important;
 }
 
 .dp-marker {
-    width: 28px;
-    height: 28px;
+    width: 36px;
+    height: 36px;
     border-radius: 50% 50% 50% 0;
     transform: rotate(-45deg);
-    border: 2px solid #ffffff;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+    border: 3px solid #ffffff;
+    box-shadow: 0 0 0 2px #1f2937,
+                0 4px 10px rgba(0, 0, 0, 0.45);
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
 .dp-marker svg {
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
     fill: #ffffff;
     transform: rotate(45deg);
 }
 
-/* Aktivní marker (otevřen sidebar) – stable větší + tmavý ring kolem.
-   Žádná animace - jen statický highlight, snadno identifikovatelný i
-   při rychlém pohledu na mapu. */
-.dp-marker-wrapper.marker-active {
-    z-index: 10000 !important;
-}
-
-.dp-marker-wrapper.marker-active .dp-marker {
-    transform: rotate(-45deg) scale(1.35);
-    transform-origin: 50% 100%;
-    border: 3px solid #ffffff;
-    box-shadow: 0 0 0 2px #1f2937,
-                0 4px 10px rgba(0, 0, 0, 0.45);
-}
-
-.dp-marker-wrapper.marker-active .dp-marker svg {
-    width: 13px;
-    height: 13px;
+/* Glify canvas plovoucí nad mapou – ujistit se, že přijímá kurzor/click. */
+.leaflet-pane > canvas.glify-points {
+    cursor: pointer;
 }
 
 /* ===== Legenda kategorií ===== */
