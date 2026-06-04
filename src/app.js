@@ -474,7 +474,7 @@
         const lat = coords[idx * 2];
         const lng = coords[idx * 2 + 1];
         marker = L.marker([lat, lng], { icon: buildIcon(katIdx[idx]) });
-        marker.bindTooltip(names[idx] || '?', { direction: 'top', offset: [0, -10] });
+        marker.bindTooltip(escapeHtml(names[idx] || '?'), { direction: 'top', offset: [0, -10] });
         marker.on('click', () => {
             const props = propsByNid(nid);
             if (!props) return;
