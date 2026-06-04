@@ -37,9 +37,9 @@
     const POINT_SENSITIVITY = 2.0;
     // Při tomto zoomu a výš se přepne z WebGL teček na klasické SVG teardrop ikony
     // pro body ve viewportu. Důvod: na blízkém zoomu jsou tečky vizuálně chudé,
-    // ale celkový počet bodů ve viewportu je zvládnutelný (typicky 200-1000 na
-    // zoomu 14), takže si klasické markery můžeme dovolit.
-    const ICON_MODE_MIN_ZOOM = 14;
+    // ale celkový počet bodů ve viewportu je zvládnutelný (na zoom 12 typicky
+    // 1500-5000 bodů), takže si klasické markery můžeme dovolit.
+    const ICON_MODE_MIN_ZOOM = 12;
 
     // ===== Marker ikony per kategorie druhu =====
     // 5 vizuálně odlišených kategorií + default. Mapping z 31 druhů (term_data vid=5).
