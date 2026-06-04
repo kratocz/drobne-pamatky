@@ -35,6 +35,11 @@
     const POINT_SIZE = 6;
     // Pixelová tolerance pro click hit-test (čím větší, tím snáz se klikne).
     const POINT_SENSITIVITY = 2.0;
+    // Při tomto zoomu a výš se přepne z WebGL teček na klasické SVG teardrop ikony
+    // pro body ve viewportu. Důvod: na blízkém zoomu jsou tečky vizuálně chudé,
+    // ale celkový počet bodů ve viewportu je malý (typicky 50-500), takže si
+    // klasické markery můžeme dovolit.
+    const ICON_MODE_MIN_ZOOM = 16;
 
     // ===== Marker ikony per kategorie druhu =====
     // 5 vizuálně odlišených kategorií + default. Mapping z 31 druhů (term_data vid=5).
@@ -433,6 +438,118 @@
         activeOverlay.addTo(map);
     };
 
+    // ===== Hybrid render: na zoom >= ICON_MODE_MIN_ZOOM vykresli klasické
+    // teardrop ikony per body ve viewportu. Glify vrstva se schová.
+    // Na nižším zoomu naopak ukáži glify a vyprázdním ikony.
+    // =======================================================================
+
+    // Normální (ne-active) ikony per kategorie – cache, ať nealokujeme per marker.
+    const iconCache = new Map();
+    const buildIcon = (idxKat) => {
+        if (iconCache.has(idxKat)) return iconCache.get(idxKat);
+        const katKey = katKeyByIndex[idxKat] || 'default';
+        const cfg = KATEGORIE[katKey];
+        const html = `<div class="dp-marker" style="background:${cfg.color}">
+            <svg viewBox="0 0 24 24"><path d="${cfg.svg}"/></svg></div>`;
+        const icon = L.divIcon({
+            html,
+            className: 'dp-marker-wrapper',
+            iconSize: [28, 28],
+            iconAnchor: [14, 28],
+            popupAnchor: [0, -28],
+        });
+        iconCache.set(idxKat, icon);
+        return icon;
+    };
+
+    const iconLayer = L.layerGroup();
+    let iconModeActive = false;
+    // Cache: nid → L.Marker (recyklujeme, ať nealokujeme pokaždé když user posune mapu)
+    const iconMarkerCache = new Map();
+
+    const getOrCreateIconMarker = (idx) => {
+        const nid = nids[idx];
+        let marker = iconMarkerCache.get(nid);
+        if (marker) return marker;
+        const lat = coords[idx * 2];
+        const lng = coords[idx * 2 + 1];
+        marker = L.marker([lat, lng], { icon: buildIcon(katIdx[idx]) });
+        marker.bindTooltip(names[idx] || '?', { direction: 'top', offset: [0, -10] });
+        marker.on('click', () => {
+            const props = propsByNid(nid);
+            if (!props) return;
+            setPamatkaRoute(nid);
+            openDetailPanel(props);
+        });
+        iconMarkerCache.set(nid, marker);
+        return marker;
+    };
+
+    const updateIconMarkers = () => {
+        if (!coords) return;  // data ještě nenačtena
+        const bounds = map.getBounds();
+        const south = bounds.getSouth();
+        const north = bounds.getNorth();
+        const west = bounds.getWest();
+        const east = bounds.getEast();
+
+        // Najdi body ve viewportu (linear scan přes 81k, ~1 ms na current HW).
+        const visible = new Set();
+        const n = nids.length;
+        for (let i = 0; i < n; i++) {
+            const lat = coords[i * 2];
+            const lng = coords[i * 2 + 1];
+            if (lat >= south && lat <= north && lng >= west && lng <= east) {
+                visible.add(nids[i]);
+            }
+        }
+
+        // Diff: odeber markery, které už nejsou ve viewportu; přidej nové.
+        const currentLayers = iconLayer.getLayers();
+        for (const m of currentLayers) {
+            const mNid = m.options._nid;
+            if (!visible.has(mNid)) iconLayer.removeLayer(m);
+        }
+        // Re-build set těch co už jsou v layeru, ať je nepřidáme znovu
+        const alreadyIn = new Set();
+        for (const m of iconLayer.getLayers()) alreadyIn.add(m.options._nid);
+
+        for (let i = 0; i < n; i++) {
+            const nid = nids[i];
+            if (!visible.has(nid) || alreadyIn.has(nid)) continue;
+            const marker = getOrCreateIconMarker(i);
+            marker.options._nid = nid;
+            iconLayer.addLayer(marker);
+        }
+    };
+
+    // Najdi glify canvas v DOMu (přidali jsme mu className: 'dp-glify-canvas').
+    const findGlifyCanvas = () => document.querySelector('canvas.dp-glify-canvas');
+
+    const setRenderMode = (zoom) => {
+        const shouldShowIcons = zoom >= ICON_MODE_MIN_ZOOM;
+        if (shouldShowIcons === iconModeActive) {
+            // Mode se nemění, ale viewport možná ano – pokud jsme v icon módu,
+            // updatuj které markery jsou viditelné.
+            if (iconModeActive) updateIconMarkers();
+            return;
+        }
+        iconModeActive = shouldShowIcons;
+        const canvas = findGlifyCanvas();
+        if (shouldShowIcons) {
+            if (canvas) canvas.style.display = 'none';
+            map.addLayer(iconLayer);
+            updateIconMarkers();
+        } else {
+            map.removeLayer(iconLayer);
+            iconLayer.clearLayers();  // markery zůstanou v cache, ne v DOM
+            if (canvas) canvas.style.display = '';
+        }
+    };
+
+    map.on('zoomend', () => setRenderMode(map.getZoom()));
+    map.on('moveend', () => { if (iconModeActive) updateIconMarkers(); });
+
     const openDetailPanel = async (props) => {
         clearRouteCloseTimer();
         activeNid = Number(props.i);
@@ -561,6 +678,7 @@
             opacity: 0.85,
             sensitivity: POINT_SENSITIVITY,
             color: colorForIndex,
+            className: 'dp-glify-canvas',
             // Click hit-test: glify předá (e, point, xy) – point je [lat, lng], ale
             // pro identifikaci konkrétního bodu musíme dohledat index. Glify
             // bohužel v public API neposílá index přímo, takže ho najdeme přes
@@ -608,6 +726,8 @@
 
         dataReady = true;
         initSearch();
+        // Inicializuj render mode podle aktuálního zoomu (CZ_ZOOM=7 → glify mód).
+        setRenderMode(map.getZoom());
         requestAnimationFrame(() => {
             try {
                 if (!openRouteFromLocation({ replaceUrl: true }) && !currentRouteNid()) {
