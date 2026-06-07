@@ -18,7 +18,58 @@ import argparse
 import json
 import os
 import time
+import bleach
 import pymysql
+
+# ── Sanitizace popisových textů (issue #8) ─────────────────────────────
+# Drupal 6 "Filtered HTML" formát (format=1, 99.95 % záznamů) povoluje
+# inline tagy. Sanitizace zachová <a><br><em><strong> + http/https/mailto.
+# Pro format!=1 (5 záznamů) striktně plaintext.
+
+ALLOWED_TAGS = ['a', 'br', 'em', 'strong']
+ALLOWED_ATTRS = {'a': ['href', 'rel']}
+ALLOWED_PROTOCOLS = ['http', 'https', 'mailto']
+
+
+def looks_like_navigation_dump(text):
+    """
+    Heuristika pro web-scrape garbage (např. nid 72018):
+      - obsahuje pipe-separated menu (3+ '|' na řádku < 200 znaků), NEBO
+      - > 60 % řádků je krátkých (<30 znaků) bez koncové interpunkce.
+    """
+    for line in text.splitlines():
+        line_s = line.strip()
+        if 0 < len(line_s) < 200 and line_s.count('|') >= 3:
+            return True
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    if len(lines) < 3:
+        return False
+    short_lines = sum(1 for l in lines
+                      if len(l) < 30 and not l.endswith(('.', '!', '?', ':')))
+    return (short_lines / len(lines)) > 0.6
+
+
+def sanitize_body(text, fmt):
+    """
+    Sanitizuj Drupal body/teaser. Vrací None pro prázdný vstup nebo nav-dump.
+    """
+    if not text:
+        return None
+    if fmt == 1:
+        clean = bleach.clean(
+            text,
+            tags=ALLOWED_TAGS,
+            attributes=ALLOWED_ATTRS,
+            protocols=ALLOWED_PROTOCOLS,
+            strip=True,
+        )
+    else:
+        clean = bleach.clean(text, tags=[], strip=True)
+    clean = clean.strip()
+    if not clean or looks_like_navigation_dump(clean):
+        return None
+    return clean
+
 
 DB_CFG = dict(host="127.0.0.1", port=13306, user="root", password="REDACTED",
               database="gk66", charset="utf8")
