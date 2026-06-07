@@ -16,8 +16,9 @@ Z tohoto repozitáře se má postupně stát veřejný frontend původního webu
 ## Technologie
 
 - [Leaflet](https://leafletjs.com/) – interaktivní mapa
-- [Leaflet.markercluster](https://github.com/Leaflet/Leaflet.markercluster) – shlukování bodů (kvůli desítkám tisíc záznamů)
-- Historické mapové podklady – WMS [ČÚZK Geoportál](https://geoportal.cuzk.cz/)
+- [Leaflet.glify](https://github.com/robertleeplummerjr/Leaflet.glify) – WebGL renderer pro vykreslení všech ~81k bodů bez clusteringu
+- [MiniSearch](https://github.com/lucaong/minisearch) – fulltextové vyhledávání v prohlížeči
+- Mapové podklady: OpenStreetMap, OpenTopoMap, WMS [ČÚZK Ortofoto](https://geoportal.cuzk.cz/)
 - Data ve formátu **GeoJSON**, statický hosting na **GitHub Pages**
 
 ## Spuštění lokálně
@@ -45,7 +46,11 @@ Otevřít [http://localhost:8000](http://localhost:8000).
 
 ## Stav projektu
 
-Rozjezd – aktuálně funkční mapa s ukázkovými body. Import reálných dat z původního webu (přímo z databáze Drupalu 6) následuje.
+Plně funkční mapa s ~81 000 reálnými záznamy památek importovanými z databáze původního webu. Detail panel s fotogalerií, fulltextové vyhledávání, hluboké odkazy na konkrétní památku (`/pamatka/<nid>-<slug>/`). Aktivní vývoj – viz [otevřené issues](https://github.com/kratocz/drobne-pamatky/issues).
+
+## Plánovaná vylepšení a hlášení chyb
+
+Úkoly, nápady a bugy jsou vedeny jako [GitHub Issues](https://github.com/kratocz/drobne-pamatky/issues). Pokud narazíte na problém, máte návrh na vylepšení nebo se chcete na něčem podílet, založte (nebo si vyberte) issue tam – diskuse probíhá u konkrétního ticketu.
 
 ## Licence
 

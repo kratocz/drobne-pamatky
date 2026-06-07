@@ -44,6 +44,16 @@ Dlouhodobá vize: stát se veřejným frontendem původního webu – data perio
 - Velké datové dumpy (`*.sql`, `*.sql.gz`) a `.env` soubory necommitovat – jsou v `.gitignore`.
 - Commit messages: konvenční prefix (`docs:`, `feat:`, `fix:`, `chore:` …) + krátký český popis (viz git log).
 
+## Issue tracker
+
+Úkoly, bugy a návrhy vylepšení jsou vedeny jako **GitHub issues** v tomto repu: https://github.com/kratocz/drobne-pamatky/issues
+
+Žádný `TODO.md` v repu nevedeme – issues jsou jediný zdroj pravdy pro stav prací.
+
+- Před začátkem nové práce projít otevřené issues (`gh issue list`) a pokud k tématu existuje, navázat na něj (commit message `fix #N`, `closes #N`).
+- Při nálezu nového bugu nebo nápadu založit issue (`gh issue create`), nepouštět se do implementace bez ticketu.
+- Acceptance criteria patří do těla issue, ne do kódu ani commitu.
+
 ## Starý server (zdroj dat)
 
 Produkční VPS s původním Drupal 6 webem, ze kterého se data periodicky exportují sem.
