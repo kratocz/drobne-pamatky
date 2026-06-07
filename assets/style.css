@@ -382,12 +382,16 @@ main {
 
 .detail-content .gallery-hero {
     margin-bottom: 0.4rem;
+    aspect-ratio: 4 / 3;
+    background: #e5e7eb;
+    border-radius: 4px;
+    overflow: hidden;
 }
 
 .detail-content .gallery-hero img {
     width: 100%;
-    border-radius: 4px;
-    background: #e5e7eb;
+    height: 100%;
+    object-fit: cover;
     display: block;
 }
 

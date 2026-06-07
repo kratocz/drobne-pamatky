@@ -335,7 +335,7 @@
                         return `<img src="${u}" alt="${altText}" data-fotka-idx="${idx}" class="${idx === 0 ? 'active' : ''}" loading="lazy">`;
                     }).join('')}
                 </div>` : '';
-            return `<div class="gallery-hero"><img src="${heroUrl}" alt="${altText}" id="detail-hero-img" loading="lazy"></div>${thumbsHtml}`;
+            return `<div class="gallery-hero"><img src="${heroUrl}" alt="${altText}" id="detail-hero-img" fetchpriority="high" decoding="async"></div>${thumbsHtml}`;
         })() : '';
 
         const popisParts = [
