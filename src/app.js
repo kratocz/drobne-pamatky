@@ -429,12 +429,25 @@
         const props = propsByNid(nid);
         if (!props) return;
         const icon = buildActiveIcon(props.katIdx);
-        activeOverlay = L.marker([props.lat, props.lon], {
+        const latlng = [props.lat, props.lon];
+        // Bílá podložka přes glify tečku (POINT_SIZE=6 px, takže 8 px radius ji s rezervou překryje).
+        // V icon módu (zoom ≥ ICON_MODE_MIN_ZOOM) je glify schované – kruh vidět nebude
+        // protože je za teardropem a podkladová mapa ho neukáže.
+        const masker = L.circleMarker(latlng, {
+            radius: 8,
+            fillColor: '#ffffff',
+            fillOpacity: 1,
+            stroke: false,
+            interactive: false,
+            pane: 'overlayPane',
+        });
+        const teardrop = L.marker(latlng, {
             icon,
             interactive: false,  // neblokovat click na glify pod ním
             keyboard: false,
             zIndexOffset: 1000,
         });
+        activeOverlay = L.layerGroup([masker, teardrop]);
         activeOverlay.addTo(map);
     };
 
