@@ -10,9 +10,8 @@ Výstup do scripts/snapshot/out/:
 
 Spuštění:
   cd scripts/snapshot
-  source venv/bin/activate
-  python export.py                 # full export ~82 k záznamů
-  python export.py --limit 10      # pilot
+  uv run python export.py                 # full export ~82 k záznamů
+  uv run python export.py --limit 10      # pilot
 """
 
 import argparse

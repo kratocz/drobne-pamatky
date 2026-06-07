@@ -10,7 +10,9 @@ Dlouhodobá vize: stát se veřejným frontendem původního webu – data perio
 
 ## Setup
 
-Žádné závislosti k instalaci pro běh webu – všechny knihovny (Leaflet, Leaflet.glify, MiniSearch) se načítají z CDN přes `unpkg.com` / `cdn.jsdelivr.net` v `index.html`. Build pipeline pro export dat má vlastní `package.json` v `scripts/snapshot/`.
+Žádné závislosti k instalaci pro běh webu – všechny knihovny (Leaflet, Leaflet.glify, MiniSearch) se načítají z CDN přes `unpkg.com` / `cdn.jsdelivr.net` v `index.html`. Build pipeline pro export dat má vlastní závislosti v `scripts/snapshot/`:
+- **Python (export.py, build_thumbnails.py):** `uv` ([install](https://docs.astral.sh/uv/getting-started/installation/)). První spuštění: `cd scripts/snapshot && uv sync` (vytvoří `.venv/` z `pyproject.toml` + `uv.lock`). Skripty pouštět přes `uv run python <skript>.py`.
+- **Node (build_search_index.js):** `cd scripts/snapshot && npm install` (vlastní `package.json`).
 
 ## Rendering pipeline
 

@@ -13,10 +13,9 @@ Pipeline per fotka:
 
 Spuštění:
   cd scripts/snapshot
-  source venv/bin/activate
-  python build_thumbnails.py                  # full ~125 k souborů
-  python build_thumbnails.py --limit 100      # pilot
-  python build_thumbnails.py --workers 4      # méně paralelismu
+  uv run python build_thumbnails.py                  # full ~125 k souborů
+  uv run python build_thumbnails.py --limit 100      # pilot
+  uv run python build_thumbnails.py --workers 4      # méně paralelismu
 """
 
 import argparse

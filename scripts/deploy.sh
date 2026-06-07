@@ -3,9 +3,9 @@
 #
 # Předpoklady:
 #   - data/ obsahuje aktuální vygenerované soubory:
-#       scripts/snapshot/venv/bin/python scripts/snapshot/export.py
-#       cd scripts/snapshot && node build_search_index.js
-#       scripts/snapshot/venv/bin/python scripts/snapshot/build_thumbnails.py
+#       (cd scripts/snapshot && uv run python export.py)
+#       (cd scripts/snapshot && node build_search_index.js)
+#       (cd scripts/snapshot && uv run python build_thumbnails.py)
 #       cp -R scripts/snapshot/out/{pamatky.geojson,lookups.json,search-index.json,details} data/
 #   - main branch je čistý (žádné uncommitted změny)
 #   - gh-pages branch může i nemusí existovat (force push ji přepíše)
@@ -58,9 +58,9 @@ done
 if [[ $missing -ne 0 ]]; then
     echo
     echo "ERROR: nemáš všechny soubory pro deploy. Spusť snapshot pipeline:"
-    echo "  scripts/snapshot/venv/bin/python scripts/snapshot/export.py"
+    echo "  (cd scripts/snapshot && uv run python export.py)"
     echo "  (cd scripts/snapshot && node build_search_index.js)"
-    echo "  scripts/snapshot/venv/bin/python scripts/snapshot/build_thumbnails.py"
+    echo "  (cd scripts/snapshot && uv run python build_thumbnails.py)"
     echo "  cp -R scripts/snapshot/out/{pamatky.geojson,lookups.json,search-index.json,details} data/"
     exit 1
 fi
