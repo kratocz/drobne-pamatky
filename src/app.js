@@ -277,30 +277,44 @@
         routeCloseTimer = null;
     };
 
-    const buildMistoCesta = (mistoTermy) => {
-        if (!mistoTermy || !mistoTermy.length) return '';
-        let kraj = null;
-        for (const tid of mistoTermy) {
-            const entry = lookups.misto[tid];
-            if (entry && entry.parent_tid === 0) { kraj = tid; break; }
-        }
-        if (!kraj) {
-            return mistoTermy.map(t => lookups.misto[t]?.name).filter(Boolean).join(' · ');
-        }
-        const chain = [];
-        const collectChildren = (parentTid) => {
+    const buildMistoCesta = (mistoTermy, sidlo) => {
+        const chainNames = [];
+        if (mistoTermy && mistoTermy.length) {
+            let kraj = null;
             for (const tid of mistoTermy) {
                 const entry = lookups.misto[tid];
-                if (entry && entry.parent_tid === parentTid) {
-                    chain.push({ tid, name: entry.name });
-                    collectChildren(tid);
-                    return;
-                }
+                if (entry && entry.parent_tid === 0) { kraj = tid; break; }
             }
-        };
-        chain.push({ tid: kraj, name: lookups.misto[kraj].name });
-        collectChildren(kraj);
-        return chain.map(c => escapeHtml(c.name)).join(' › ');
+            if (!kraj) {
+                mistoTermy.forEach(t => {
+                    const name = lookups.misto[t]?.name;
+                    if (name) chainNames.push(name);
+                });
+            } else {
+                chainNames.push(lookups.misto[kraj].name);
+                const collectChildren = (parentTid) => {
+                    for (const tid of mistoTermy) {
+                        const entry = lookups.misto[tid];
+                        if (entry && entry.parent_tid === parentTid) {
+                            chainNames.push(entry.name);
+                            collectChildren(tid);
+                            return;
+                        }
+                    }
+                };
+                collectChildren(kraj);
+            }
+        }
+        // sidlo = název obce/místní části (100 % vyplněno) – přidat jako poslední
+        // úroveň pokud se ještě nikde v chainu neobjevuje (běžně se kryje s úrovní
+        // obce v misto_termy, ale někdy je o úroveň níž = městská část).
+        if (sidlo) {
+            const sidloKey = stripDiacritics(sidlo);
+            const alreadyInChain = chainNames.some(n => stripDiacritics(n) === sidloKey);
+            if (!alreadyInChain) chainNames.push(sidlo);
+        }
+        if (!chainNames.length) return '';
+        return chainNames.map(n => escapeHtml(n)).join(' › ');
     };
 
     // ===== Detail panel (sidebar) =====
@@ -322,7 +336,8 @@
             `;
         }
 
-        const misto = buildMistoCesta(detail.misto_termy);
+        const popis = detail.popis || {};
+        const misto = buildMistoCesta(detail.misto_termy, popis.sidlo);
         const fotky = detail.fotky || [];
 
         const galleryHtml = fotky.length ? (() => {
@@ -338,14 +353,24 @@
             return `<div class="gallery-hero"><img src="${heroUrl}" alt="${altText}" id="detail-hero-img" fetchpriority="high" decoding="async"></div>${thumbsHtml}`;
         })() : '';
 
-        const popisParts = [
-            detail.popis?.zvlastnost,
-            detail.popis?.oborano,
-            detail.popis?.wiki,
-            detail.popis?.cesta,
-        ].filter(Boolean);
+        // Štítky z popis.* polí (vše až na sidlo, který šel do hierarchie místa).
+        // Nejedná se o popisový text – jsou to labely/booleany z původního Drupalu.
+        const tags = [];
+        if (popis.zvlastnost) {
+            tags.push(`<span class="detail-tag">${escapeHtml(popis.zvlastnost)}</span>`);
+        }
+        if (popis.cesta) {
+            tags.push(`<span class="detail-tag">Součást křížové cesty</span>`);
+        }
+        if (popis.oborano) {
+            tags.push(`<span class="detail-tag detail-tag-warn">Zničeno / zaoráno</span>`);
+        }
+        const tagsHtml = tags.length ? `<div class="detail-tags">${tags.join('')}</div>` : '';
 
         const meta = detail.metadata || {};
+        // Wikidata QID je ve skutečnosti v popis.wiki (field_wiki_value), ne v metadata.wikidata_qid
+        // (field_wd_value v Drupalu existuje ale je vždy NULL). Fallback čte oba pro robustnost.
+        const wikidataQid = meta.wikidata_qid || popis.wiki;
         const formatTs = (ts) => {
             if (!ts) return null;
             try {
@@ -357,7 +382,7 @@
             meta.pridano && `<div><strong>Přidáno:</strong> ${escapeHtml(meta.pridano)}</div>`,
             createdDate && `<div><strong>Vytvořeno:</strong> ${escapeHtml(createdDate)}</div>`,
             meta.licence && `<div><strong>Licence:</strong> ${escapeHtml(String(meta.licence))}</div>`,
-            meta.wikidata_qid && `<div><strong>Wikidata:</strong> <a href="https://www.wikidata.org/wiki/${encodeURIComponent(meta.wikidata_qid)}" target="_blank" rel="noopener">${escapeHtml(meta.wikidata_qid)}</a></div>`,
+            wikidataQid && `<div><strong>Wikidata:</strong> <a href="https://www.wikidata.org/wiki/${encodeURIComponent(wikidataQid)}" target="_blank" rel="noopener">${escapeHtml(wikidataQid)}</a></div>`,
             meta.nkpid && `<div><strong>NPÚ ID:</strong> ${escapeHtml(String(meta.nkpid))}</div>`,
             meta.author_uid && (() => {
                 const authorName = lookups.users?.[meta.author_uid];
@@ -374,8 +399,8 @@
                 ${druh && misto ? ' · ' : ''}
                 ${misto}
             </p>
+            ${tagsHtml}
             ${galleryHtml}
-            ${popisParts.map(p => `<p class="detail-popis">${escapeHtml(p)}</p>`).join('')}
             ${metaRows.length ? `<div class="detail-metaextra">${metaRows.join('')}</div>` : ''}
             <div class="detail-links">
                 <a href="${ORIG_URL(props.i)}" target="_blank" rel="noopener">Zdroj na drobnepamatky.cz →</a>

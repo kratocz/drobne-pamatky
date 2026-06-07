@@ -380,6 +380,30 @@ main {
     color: #1f2937;
 }
 
+.detail-content .detail-tags {
+    margin: 0 0 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.detail-content .detail-tag {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    line-height: 1.4;
+    background: #e5e7eb;
+    color: #1f2937;
+    border: 1px solid #d1d5db;
+}
+
+.detail-content .detail-tag.detail-tag-warn {
+    background: #fee2e2;
+    color: #991b1b;
+    border-color: #fca5a5;
+}
+
 .detail-content .gallery-hero {
     margin-bottom: 0.4rem;
     aspect-ratio: 4 / 3;
