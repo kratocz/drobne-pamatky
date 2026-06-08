@@ -488,6 +488,27 @@ main {
     text-decoration: underline;
 }
 
+.detail-content .detail-popis-body {
+    margin: 0.75rem 0;
+    line-height: 1.55;
+    color: #2a2a2a;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.detail-content .detail-popis-body a {
+    color: #1a5490;
+    text-decoration: underline;
+}
+
+.detail-content .detail-popis-body em {
+    font-style: italic;
+}
+
+.detail-content .detail-popis-body strong {
+    font-weight: 600;
+}
+
 .detail-content .loading {
     color: #6b7280;
     font-style: italic;
