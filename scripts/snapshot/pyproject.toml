@@ -3,6 +3,6 @@ name = "dp-snapshot"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "bleach>=6.4.0",
-    "pymysql==1.1.2",
+    "bleach~=6.4",
+    "pymysql~=1.1",
 ]
