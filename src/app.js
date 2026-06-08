@@ -367,6 +367,17 @@
         }
         const tagsHtml = tags.length ? `<div class="detail-tags">${tags.join('')}</div>` : '';
 
+        // Popis text (issue #8). Sanitizováno už v Pythonu přes bleach,
+        // druhá vrstva DOMPurify defense in depth. Fallback: pokud by DOMPurify
+        // z nějakého důvodu nebyl načtený, raději nic než nesanitizovaný HTML.
+        const popisText = popis.text || popis.teaser;
+        const popisHtml = (popisText && typeof DOMPurify !== 'undefined')
+            ? `<div class="detail-popis-body">${DOMPurify.sanitize(popisText, {
+                  ALLOWED_TAGS: ['a', 'br', 'em', 'strong'],
+                  ALLOWED_ATTR: ['href', 'rel'],
+              })}</div>`
+            : '';
+
         const meta = detail.metadata || {};
         // Wikidata QID je ve skutečnosti v popis.wiki (field_wiki_value), ne v metadata.wikidata_qid
         // (field_wd_value v Drupalu existuje ale je vždy NULL). Fallback čte oba pro robustnost.
@@ -400,6 +411,7 @@
                 ${misto}
             </p>
             ${tagsHtml}
+            ${popisHtml}
             ${galleryHtml}
             ${metaRows.length ? `<div class="detail-metaextra">${metaRows.join('')}</div>` : ''}
             <div class="detail-links">
@@ -411,16 +423,23 @@
     const attachGalleryHandlers = (detail) => {
         const hero = panelContentEl.querySelector('#detail-hero-img');
         const thumbs = panelContentEl.querySelectorAll('.gallery-thumbs img');
-        if (!hero || !thumbs.length) return;
-        thumbs.forEach(t => {
-            t.addEventListener('click', () => {
-                const idx = Number(t.dataset.fotkaIdx);
-                const f = detail.fotky?.[idx];
-                if (!f) return;
-                hero.src = THUMB_URL(f.path);
-                thumbs.forEach(x => x.classList.remove('active'));
-                t.classList.add('active');
+        if (hero && thumbs.length) {
+            thumbs.forEach(t => {
+                t.addEventListener('click', () => {
+                    const idx = Number(t.dataset.fotkaIdx);
+                    const f = detail.fotky?.[idx];
+                    if (!f) return;
+                    hero.src = THUMB_URL(f.path);
+                    thumbs.forEach(x => x.classList.remove('active'));
+                    t.classList.add('active');
+                });
             });
+        }
+        // External links v popisovém textu otevřít v novém tabu (DOMPurify
+        // whitelistuje atributy ale nepřidává je).
+        panelContentEl.querySelectorAll('.detail-popis-body a').forEach(a => {
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
         });
     };
 
