@@ -100,7 +100,8 @@ def fetch_nids(cur, limit=None):
 
 
 def fetch_objects(cur):
-    """Všechna publikovaná data – jeden řádek per památka. Druh se dotazuje zvlášť."""
+    """Všechna publikovaná data – jeden řádek per památka. Druh se dotazuje zvlášť.
+    JOIN node_revisions kvůli body/teaser (issue #8)."""
     cur.execute(
         """
         SELECT
@@ -119,9 +120,13 @@ def fetch_objects(cur):
           cto.field_oborano_value AS popis_oborano,
           cto.field_wiki_value AS wiki_popis,
           cto.field_cesta_value AS cesta_popis,
-          cto.field_sidlo_value AS sidlo
+          cto.field_sidlo_value AS sidlo,
+          nr.body AS popis_body,
+          nr.teaser AS popis_teaser,
+          nr.format AS popis_format
         FROM node n
         JOIN content_type_objekt cto ON cto.nid = n.nid AND cto.vid = n.vid
+        JOIN node_revisions nr ON nr.vid = n.vid
         JOIN location l ON l.lid = cto.field_pozice_lid
         WHERE n.type = 'objekt' AND n.status = 1
           AND l.latitude != 0 AND l.longitude != 0
