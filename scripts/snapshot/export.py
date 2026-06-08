@@ -383,7 +383,7 @@ def main():
             # Sníží Pages disk usage z ~319 MB (per-file 4 KB block padding)
             # na ~30 MB (14 souborů × ~2 MB).
             buckets = {}
-            body_stats = {"total_with_body": 0, "kept": 0, "dropped_garbage": 0}
+            body_stats = {"total_with_body": 0, "kept": 0, "dropped_empty": 0}
             for nid, obj in objects.items():
                 if obj.get("popis_body"):
                     body_stats["total_with_body"] += 1
@@ -397,12 +397,12 @@ def main():
                     if detail["popis"].get("text"):
                         body_stats["kept"] += 1
                     else:
-                        body_stats["dropped_garbage"] += 1
+                        body_stats["dropped_empty"] += 1
                 kraj_tid = kraj_per_nid[nid]
                 buckets.setdefault(kraj_tid, {})[str(nid)] = detail
             print(f"      body stats: {body_stats['total_with_body']} s body, "
                   f"{body_stats['kept']} zachováno, "
-                  f"{body_stats['dropped_garbage']} zahozeno (prázdné po sanitizaci)",
+                  f"{body_stats['dropped_empty']} zahozeno (prázdné po sanitizaci)",
                   flush=True)
 
             for kraj_tid, bucket in buckets.items():

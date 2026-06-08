@@ -2,7 +2,15 @@
 
 **Datum:** 2026-06-08
 **Issue:** [#8](https://github.com/kratocz/drobne-pamatky/issues/8)
-**Status:** schválený design, čeká na implementační plán
+**Status:** implementováno a nasazeno (2026-06-08)
+
+> **Odchylka od specu:** Heuristická detekce nav-dumpu (`looks_like_navigation_dump`)
+> byla z `sanitize_body` odstraněna v commitu [`bbaed6a8f`](https://github.com/kratocz/drobne-pamatky/commit/bbaed6a8f).
+> Na reálných datech zachytávala false-positives (seznamy jmen na válečných pomnících)
+> a zároveň propouštěla skutečné nav-dumpy. Bezpečnost drží `bleach` + `DOMPurify`,
+> pár vizuálně podivných záznamů z původního scrape (~10) je přijatelná cena.
+> Sekce „Garbage detekce", „SQL JOIN", „acceptance criteria" níže popisují *původní*
+> návrh — pro aktuální stav viz docstring `sanitize_body` v `scripts/snapshot/export.py`.
 
 ## Cíl
 
