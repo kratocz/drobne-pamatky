@@ -31,27 +31,16 @@ ALLOWED_ATTRS = {'a': ['href', 'rel']}
 ALLOWED_PROTOCOLS = ['http', 'https', 'mailto']
 
 
-def looks_like_navigation_dump(text):
-    """
-    Heuristika pro web-scrape garbage (např. nid 72018):
-      - obsahuje pipe-separated menu (3+ '|' na řádku < 200 znaků), NEBO
-      - > 60 % řádků je krátkých (<30 znaků) bez koncové interpunkce.
-    """
-    for line in text.splitlines():
-        line_s = line.strip()
-        if 0 < len(line_s) < 200 and line_s.count('|') >= 3:
-            return True
-    lines = [l.strip() for l in text.splitlines() if l.strip()]
-    if len(lines) < 3:
-        return False
-    short_lines = sum(1 for l in lines
-                      if len(l) < 30 and not l.endswith(('.', '!', '?', ':')))
-    return (short_lines / len(lines)) > 0.6
-
-
 def sanitize_body(text, fmt):
     """
-    Sanitizuj Drupal body/teaser. Vrací None pro prázdný vstup nebo nav-dump.
+    Sanitizuj Drupal body/teaser. Vrací None pro prázdný vstup.
+
+    Heuristickou detekci nav-dumpu (původně součást této funkce) jsme vypustili:
+    na reálných datech zachytávala false-positives (seznamy jmen na válečných
+    pomnících, např. nid 11032, 9037) a zároveň propouštěla skutečné nav-dumpy
+    (nid 72018, jehož menu má dlouhé položky). bleach + DOMPurify drží
+    XSS protection; pár vizuálně podivných záznamů z původního scrape je
+    přijatelná cena za zachování legitimního obsahu.
     """
     if not text:
         return None
@@ -66,9 +55,7 @@ def sanitize_body(text, fmt):
     else:
         clean = bleach.clean(text, tags=[], strip=True)
     clean = clean.strip()
-    if not clean or looks_like_navigation_dump(clean):
-        return None
-    return clean
+    return clean or None
 
 
 DB_CFG = dict(host="127.0.0.1", port=13306, user="root", password="REDACTED",
@@ -415,7 +402,7 @@ def main():
                 buckets.setdefault(kraj_tid, {})[str(nid)] = detail
             print(f"      body stats: {body_stats['total_with_body']} s body, "
                   f"{body_stats['kept']} zachováno, "
-                  f"{body_stats['dropped_garbage']} zahozeno (nav-dump)",
+                  f"{body_stats['dropped_garbage']} zahozeno (prázdné po sanitizaci)",
                   flush=True)
 
             for kraj_tid, bucket in buckets.items():
