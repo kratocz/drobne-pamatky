@@ -206,6 +206,30 @@ def fetch_photos_per_nid(cur):
     return by_nid
 
 
+def fetch_files_manifest(cur):
+    """Manifest všech JPG linknutých na publikované památky.
+    Slouží sync-from-source.sh jako diff base pro thumbs (issue #1).
+
+    Vrací dict {filepath: {fid, size, timestamp}}.
+    """
+    cur.execute(
+        """
+        SELECT DISTINCT
+          f.fid, f.filepath, f.filesize, f.timestamp
+        FROM files f
+        JOIN content_field_obrazek cfo ON cfo.field_obrazek_fid = f.fid
+        JOIN node n ON n.nid = cfo.nid AND n.vid = cfo.vid
+        WHERE n.type = 'objekt' AND n.status = 1
+          AND f.filemime = 'image/jpeg'
+        """
+    )
+    return {r["filepath"]: {
+        "fid": r["fid"],
+        "size": r["filesize"],
+        "timestamp": r["timestamp"],
+    } for r in cur.fetchall()}
+
+
 def resolve_kraj_tid(misto_rows, parents):
     """
     Najde top-level kraj_tid v misto_termy daného uzlu.
@@ -350,6 +374,10 @@ def main():
             print(f"      → {len(druh_per_nid)} druh, {len(misto_per_nid)} mist, "
                   f"{len(parents)} hierarchy, {len(users)} autorů", flush=True)
 
+            print("[3b/6] fetch files manifest (JPG → fid/size/timestamp) …", flush=True)
+            files_manifest = fetch_files_manifest(cur)
+            print(f"      → {len(files_manifest)} JPG souborů", flush=True)
+
             print("[4/6] fetch photos (1 row / fotka) …", flush=True)
             photos_per_nid = fetch_photos_per_nid(cur)
             if args.limit:
@@ -367,6 +395,12 @@ def main():
             geojson = build_geojson(objects, druh_per_nid, kraj_per_nid)
             lookups = build_lookups(druh_per_nid, misto_per_nid, parents, users)
             search_data = build_search_data(objects, druh_per_nid, misto_per_nid)
+
+            with open(os.path.join(OUT_DIR, "files-manifest.json"), "w", encoding="utf-8") as f:
+                json.dump(
+                    {"generated_ts": int(time.time()), "files": files_manifest},
+                    f, ensure_ascii=False, separators=(",", ":"), default=str
+                )
 
             with open(os.path.join(OUT_DIR, "pamatky.geojson"), "w", encoding="utf-8") as f:
                 json.dump(geojson, f, ensure_ascii=False, separators=(",", ":"))
