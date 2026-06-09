@@ -13,9 +13,14 @@ Pipeline per fotka:
 
 Spuštění:
   cd scripts/snapshot
-  uv run python build_thumbnails.py                  # full ~125 k souborů
-  uv run python build_thumbnails.py --limit 100      # pilot
+  uv run python build_thumbnails.py                  # full ~125 k souborů (DB query)
+  uv run python build_thumbnails.py --limit 100      # pilot (DB query)
   uv run python build_thumbnails.py --workers 4      # méně paralelismu
+  uv run python build_thumbnails.py --only paths.txt # ze souboru (sync-from-source.sh)
+
+Pro sync-from-source.sh (issue #1):
+  - JPG_SOURCE_DIR env var přebije MIRROR_ROOT default
+  - --only <paths.txt> přebije DB query
 """
 
 import argparse
@@ -29,7 +34,10 @@ from pathlib import Path
 
 import pymysql
 
-MIRROR_ROOT = Path.home() / "IdeaProjects/github.com/kratocz/drobnepamatky.cz"
+MIRROR_ROOT = Path(os.environ.get(
+    "JPG_SOURCE_DIR",
+    str(Path.home() / "IdeaProjects/github.com/kratocz/drobnepamatky.cz"),
+))
 REPO_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_ROOT = REPO_ROOT / "data" / "thumbs"
 DB_CFG = dict(host="127.0.0.1", port=13306, user="root", password="REDACTED",
@@ -98,14 +106,22 @@ def main():
                         help="Omezit počet fotek (default: vše)")
     parser.add_argument("--workers", type=int, default=os.cpu_count() or 4,
                         help=f"Počet workerů (default: {os.cpu_count()})")
+    parser.add_argument("--only", type=str, default=None,
+                        help="Místo DB query číst seznam filepath z textového souboru "
+                             "(jeden per řádek). Pro sync-from-source.sh.")
     args = parser.parse_args()
 
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
 
     print(f"Mirror: {MIRROR_ROOT}")
     print(f"Output: {OUTPUT_ROOT}")
-    paths = fetch_jpg_paths(limit=args.limit)
-    print(f"Source: {len(paths)} JPG souborů z DB files tabulky")
+    if args.only:
+        with open(args.only, encoding="utf-8") as f:
+            paths = [line.strip() for line in f if line.strip()]
+        print(f"Source: {len(paths)} JPG ze souboru {args.only}")
+    else:
+        paths = fetch_jpg_paths(limit=args.limit)
+        print(f"Source: {len(paths)} JPG souborů z DB files tabulky")
     print(f"Workers: {args.workers}")
     print()
 
