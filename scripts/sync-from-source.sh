@@ -124,7 +124,103 @@ fi
 
 echo "  ✓ tunel živý (PID $(cat "$SSH_PID_FILE"))"
 
-# ── Zbytek pipeline (export, diff, rsync, thumbs, copy) přijde v Task 7 ─
-
+# ── 4. export.py ──────────────────────────────────────────────────────
 echo
-echo "(Pipeline placeholder — implementace v Task 7)"
+echo "─── [1/7] export.py (data + manifest) ───"
+EXPORT_ARGS=()
+if [[ -n "$LIMIT" ]]; then
+    EXPORT_ARGS+=(--limit "$LIMIT")
+fi
+(cd scripts/snapshot && uv run python export.py "${EXPORT_ARGS[@]}")
+
+# ── 5. build_search_index.js ──────────────────────────────────────────
+echo
+echo "─── [2/7] build_search_index.js ───"
+(cd scripts/snapshot && node build_search_index.js)
+
+# ── 6. Manifest diff ──────────────────────────────────────────────────
+echo
+echo "─── [3/7] manifest diff (existing thumbs vs. wanted JPG) ───"
+THUMBS_TO_GENERATE="$TMP_DIR/thumbs-to-generate.txt"
+THUMBS_TO_DELETE="$TMP_DIR/thumbs-to-delete.txt"
+JPG_TO_RSYNC="$TMP_DIR/jpg-to-rsync.txt"
+NEW_MANIFEST="$TMP_DIR/thumbs-manifest-new.json"
+
+(cd scripts/snapshot && uv run python sync_manifest_diff.py \
+    --wanted out/files-manifest.json \
+    --existing "$REPO_ROOT/data/thumbs-manifest.json" \
+    --to-generate "$THUMBS_TO_GENERATE" \
+    --to-delete "$THUMBS_TO_DELETE" \
+    --to-rsync "$JPG_TO_RSYNC" \
+    --new-manifest "$NEW_MANIFEST")
+
+GEN_COUNT=$(wc -l < "$THUMBS_TO_GENERATE" | tr -d ' ')
+DEL_COUNT=$(wc -l < "$THUMBS_TO_DELETE" | tr -d ' ')
+RSYNC_COUNT=$(wc -l < "$JPG_TO_RSYNC" | tr -d ' ')
+# wc -l u prázdného souboru vrátí 0 — výborně.
+
+echo "  → $GEN_COUNT k vygenerování, $DEL_COUNT ke smazání, $RSYNC_COUNT JPG ke stažení"
+
+# ── 7. Rsync JPG z VPS ────────────────────────────────────────────────
+JPG_DOWNLOAD_DIR="$TMP_DIR/originals"
+if [[ "$RSYNC_COUNT" -gt 0 ]]; then
+    echo
+    echo "─── [4/7] rsync $RSYNC_COUNT JPG z VPS → $JPG_DOWNLOAD_DIR ───"
+    mkdir -p "$JPG_DOWNLOAD_DIR"
+    # rsync --files-from čte seznam relativních cest, z VPS web rootu
+    rsync -av --files-from="$JPG_TO_RSYNC" \
+        root@drobnepamatky.cz:/www/drobnepamatky.cz/www/ \
+        "$JPG_DOWNLOAD_DIR/" \
+        | tail -5
+else
+    echo
+    echo "─── [4/7] rsync skip (0 JPG ke stažení) ───"
+fi
+
+# ── 8. build_thumbnails.py --only ─────────────────────────────────────
+if [[ "$GEN_COUNT" -gt 0 ]]; then
+    echo
+    echo "─── [5/7] build_thumbnails.py --only ($GEN_COUNT thumbs) ───"
+    (cd scripts/snapshot && \
+        JPG_SOURCE_DIR="$JPG_DOWNLOAD_DIR" \
+        uv run python build_thumbnails.py --only "$JPG_TO_RSYNC")
+else
+    echo
+    echo "─── [5/7] build_thumbnails skip (0 ke generování) ───"
+fi
+
+# ── 9. Cleanup obsolete thumbs ────────────────────────────────────────
+if [[ "$DEL_COUNT" -gt 0 ]]; then
+    echo
+    echo "─── [6/7] mazání $DEL_COUNT obsolete thumbs ───"
+    while IFS= read -r thumb_path; do
+        [[ -z "$thumb_path" ]] && continue
+        rm -f "data/thumbs/$thumb_path"
+    done < "$THUMBS_TO_DELETE"
+    # Smaž prázdné adresáře po roku
+    find data/thumbs -type d -empty -delete 2>/dev/null || true
+else
+    echo
+    echo "─── [6/7] cleanup skip (0 obsolete) ───"
+fi
+
+# ── 10. Kopie out/* do data/ + nový manifest ──────────────────────────
+echo
+echo "─── [7/7] kopie out/ → data/ + thumbs-manifest update ───"
+cp scripts/snapshot/out/pamatky.geojson data/
+cp scripts/snapshot/out/lookups.json data/
+cp scripts/snapshot/out/search-index.json data/
+# details/ je adresář bucketů — kopírujeme celý
+rm -rf data/details
+cp -R scripts/snapshot/out/details data/
+# Nový thumbs-manifest (z Tasku 3 helperu)
+cp "$NEW_MANIFEST" data/thumbs-manifest.json
+
+echo "  ✓ data/ aktualizováno"
+
+# ── 11. Status ────────────────────────────────────────────────────────
+echo
+echo "─── git status data/ ───"
+git status --short data/ | head -30
+echo
+echo "Hotovo. Zkontroluj diff (git diff data/) a commitni ručně."
