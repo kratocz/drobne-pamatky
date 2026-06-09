@@ -206,14 +206,16 @@ def fetch_photos_per_nid(cur):
     return by_nid
 
 
-def fetch_files_manifest(cur):
+def fetch_files_manifest(cur, nids=None):
     """Manifest všech JPG linknutých na publikované památky.
     Slouží sync-from-source.sh jako diff base pro thumbs (issue #1).
 
+    Pokud je `nids` set/list, omezí manifest jen na soubory linknuté na
+    tyto památky (pro pilot mode s --limit).
+
     Vrací dict {filepath: {fid, size, timestamp}}.
     """
-    cur.execute(
-        """
+    sql = """
         SELECT DISTINCT
           f.fid, f.filepath, f.filesize, f.timestamp
         FROM files f
@@ -221,8 +223,12 @@ def fetch_files_manifest(cur):
         JOIN node n ON n.nid = cfo.nid AND n.vid = cfo.vid
         WHERE n.type = 'objekt' AND n.status = 1
           AND f.filemime = 'image/jpeg'
-        """
-    )
+    """
+    if nids:
+        # Drupal nid je int, takže bezpečné inline (žádný SQL injection vector)
+        nid_list = ",".join(str(int(n)) for n in nids)
+        sql += f" AND n.nid IN ({nid_list})"
+    cur.execute(sql)
     return {r["filepath"]: {
         "fid": r["fid"],
         "size": r["filesize"],
@@ -375,7 +381,8 @@ def main():
                   f"{len(parents)} hierarchy, {len(users)} autorů", flush=True)
 
             print("[3b/6] fetch files manifest (JPG → fid/size/timestamp) …", flush=True)
-            files_manifest = fetch_files_manifest(cur)
+            # V pilot modu (--limit) omezit manifest na soubory linknuté na vybrané památky.
+            files_manifest = fetch_files_manifest(cur, nids=(nids if args.limit else None))
             print(f"      → {len(files_manifest)} JPG souborů", flush=True)
 
             print("[4/6] fetch photos (1 row / fotka) …", flush=True)
