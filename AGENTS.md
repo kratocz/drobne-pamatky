@@ -26,7 +26,33 @@ Dlouhodobá vize: stát se veřejným frontendem původního webu – data perio
 
 - **Run lokálně:** `python3 -m http.server 8000` nebo `npx serve .`, pak otevřít `http://localhost:8000`
 - **Build:** žádný (čistě statické soubory)
-- **Test:** zatím žádné
+- **Test:** lightweight Python skripty v `scripts/snapshot/` — `uv run python test_sanitize.py` a `uv run python test_manifest_diff.py`.
+
+## Sync ze zdroje (Drupal 6 → data/)
+
+Aktualizace `data/` z produkční DB + filesystému na `drobnepamatky.cz`:
+
+```bash
+bash scripts/sync-from-source.sh            # full sync
+bash scripts/sync-from-source.sh --limit 50 # pilot (50 záznamů z DB, ale manifest JPG je vždy celý)
+```
+
+Co skript dělá:
+1. Pre-flight (env vars, tooling, port 13306 volný)
+2. SSH tunel `root@drobnepamatky.cz:3306 → localhost:13306` (auto-cleanup)
+3. `export.py` → JSON/GeoJSON do `scripts/snapshot/out/` + `files-manifest.json`
+4. `build_search_index.js` → search index
+5. `sync_manifest_diff.py` porovná `out/files-manifest.json` s `data/thumbs-manifest.json`
+6. `rsync` jen chybějících/změněných JPG z VPS do tmp/
+7. `build_thumbnails.py --only` vygeneruje nové thumbs (sips + avifenc, macOS only)
+8. Smaže obsolete thumbs ze `data/thumbs/`
+9. Zkopíruje `out/*` + nový thumbs-manifest do `data/`
+
+**Skript NEcommituje** — po doběhnutí zkontroluj `git diff data/` a `git status data/`, pak commitni ručně.
+
+**První běh je drahý:** `data/thumbs-manifest.json` startuje jako `{}`, takže první sync stáhne všech ~112 k JPG a vygeneruje všech ~125 k thumbs (řádově hodiny + GB transferu). Následující inkrementální syncs už jsou rychlé (jen diff oproti předchozímu manifestu).
+
+Pro nasazení změn do `gh-pages` po commitu: `bash scripts/deploy.sh`.
 
 ## Struktura
 
