@@ -33,6 +33,19 @@ npx serve .
 
 Otevřít [http://localhost:8000](http://localhost:8000).
 
+## Aktualizace dat ze zdroje
+
+Vlastní snapshot z produkční Drupal databáze (vyžaduje SSH přístup na VPS + `.env` s DB credentials, viz [AGENTS.md](AGENTS.md)):
+
+```bash
+bash scripts/sync-from-source.sh            # full sync (hodiny, GB)
+bash scripts/sync-from-source.sh --limit 50 # pilot (50 záznamů)
+```
+
+Skript přes SSH tunel stáhne aktuální data, vygeneruje JSON/GeoJSON do `data/`, dotáhne nové JPG fotky a vygeneruje AVIF náhledy (inkrementálně — pomocí `data/thumbs-manifest.json` jako diff base). Po proběhnutí zkontrolujte `git diff data/` a manuálně commitněte.
+
+Pro deploy na `gh-pages` po commitu: `bash scripts/deploy.sh`.
+
 ## Struktura
 
 ```
