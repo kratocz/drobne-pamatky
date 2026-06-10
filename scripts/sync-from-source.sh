@@ -181,6 +181,13 @@ fi
 if [[ "$GEN_COUNT" -gt 0 ]]; then
     echo
     echo "─── [5/7] build_thumbnails.py --only ($GEN_COUNT thumbs) ───"
+    # Smaž existující AVIF pro to-generate (build_thumbnails.convert_one má
+    # legacy "cached" check: pokud target existuje, neoverwrites. Sync skript
+    # ale chce při (size, timestamp) změně regenerate.
+    while IFS= read -r thumb_path; do
+        [[ -z "$thumb_path" ]] && continue
+        rm -f "data/thumbs/$thumb_path"
+    done < "$THUMBS_TO_GENERATE"
     (cd scripts/snapshot && \
         JPG_SOURCE_DIR="$JPG_DOWNLOAD_DIR" \
         uv run python build_thumbnails.py --only "$JPG_TO_RSYNC")
