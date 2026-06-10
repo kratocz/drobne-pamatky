@@ -1,6 +1,8 @@
 # Plán dlouhodobé archivace
 
 > **Stav:** návrh, 2026-05-31 · **Reviewed by:** zatím nikdo · **Status:** čeká na rozhodnutí o licenci (viz [Otevřené otázky](#otevřené-otázky-před-prvním-snapshotem))
+>
+> **Update 2026-06-10:** L1 (GitHub Pages frontend) je živý na https://kratocz.github.io/drobne-pamatky/. Sync pipeline z Drupalu do `data/` implementována přes `scripts/sync-from-source.sh` (issue #1, closed). L2 (Zenodo) a L3 (Software Heritage) zatím čekají na rozhodnutí o licenci a první oficiální snapshot.
 
 Předmětem plánu je rozdělit, kde a v jaké podobě hostit jednotlivé části archivu drobných památek tak, aby data **přežila výpadek libovolné jednotlivé služby** (drobnepamatky.cz, GitHub, Zenodo) bez ztráty veřejně dostupného obsahu.
 
