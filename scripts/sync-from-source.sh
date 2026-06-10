@@ -167,8 +167,11 @@ if [[ "$RSYNC_COUNT" -gt 0 ]]; then
     echo
     echo "─── [4/7] rsync $RSYNC_COUNT JPG z VPS → $JPG_DOWNLOAD_DIR ───"
     mkdir -p "$JPG_DOWNLOAD_DIR"
-    # rsync --files-from čte seznam relativních cest, z VPS web rootu
-    rsync -av --files-from="$JPG_TO_RSYNC" \
+    # rsync --files-from čte seznam relativních cest, z VPS web rootu.
+    # --ignore-missing-args: chybí-li některý zdrojový soubor (stale DB.files
+    # entry — drupalní web má 1-5% broken references), warn a pokračuj,
+    # ne hard fail. build_thumbnails pak tyto soubory označí jako 'missing'.
+    rsync -av --ignore-missing-args --files-from="$JPG_TO_RSYNC" \
         root@drobnepamatky.cz:/www/drobnepamatky.cz/www/ \
         "$JPG_DOWNLOAD_DIR/" \
         | tail -5
