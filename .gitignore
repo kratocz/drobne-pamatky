@@ -34,3 +34,10 @@ build/
 # Pre-built search index (14 MB) - generuje scripts/snapshot/build_search_index.js
 # Stejné dilema jako details/ - zatím gitignore
 /data/search-index.json
+
+# Master GeoJSON + lookups (~8 MB + ~80 KB) - generuje scripts/snapshot/export.py
+# Lokálně produkované sync-from-source.sh; gh-pages deploy je kopíruje samostatně
+/data/pamatky.geojson
+/data/lookups.json
+# Exception: thumbs-manifest patří do gitu — sync-from-source.sh ho potřebuje jako diff base
+!/data/thumbs-manifest.json
