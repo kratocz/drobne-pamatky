@@ -35,9 +35,19 @@ build/
 # Stejné dilema jako details/ - zatím gitignore
 /data/search-index.json
 
+# Per-pamatka HTML + sitemap (~120 MB, 82k souborů) - generuje scripts/snapshot/build_static_pages.py
+# Lokálně produkované, deploy.sh kopíruje na gh-pages
+/data/pamatka/
+/data/sitemap.xml
+/data/sitemap-*.xml
+/data/robots.txt
+
 # Master GeoJSON + lookups (~8 MB + ~80 KB) - generuje scripts/snapshot/export.py
 # Lokálně produkované sync-from-source.sh; gh-pages deploy je kopíruje samostatně
 /data/pamatky.geojson
 /data/lookups.json
 # Exception: thumbs-manifest patří do gitu — sync-from-source.sh ho potřebuje jako diff base
 !/data/thumbs-manifest.json
+
+# Visual companion (brainstorming mockups)
+.superpowers/
