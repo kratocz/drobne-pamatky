@@ -1,8 +1,8 @@
 # Design: Per-pamatka HTML + sitemap (issue #5)
 
-**Datum:** 2026-06-12
-**Issue:** [#5](https://github.com/kratocz/drobne-pamatky/issues/5)
-**Status:** schválený design, čeká na implementační plán
+- **Datum:** 2026-06-12
+- **Issue:** [#5](https://github.com/kratocz/drobne-pamatky/issues/5)
+- **Status:** schválený design, čeká na implementační plán
 
 ## Cíl
 
