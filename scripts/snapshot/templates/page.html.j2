@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }} – Drobné památky</title>
+<meta name="description" content="{{ description }}">
+<link rel="canonical" href="{{ canonical }}">
+<meta name="robots" content="index, follow">
+<meta property="og:title" content="{{ title }}">
+<meta property="og:description" content="{{ description }}">
+{% if hero %}<meta property="og:image" content="{{ hero_abs }}">{% endif %}
+<meta property="og:url" content="{{ canonical }}">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Drobné památky">
+<meta name="twitter:card" content="summary{% if hero %}_large_image{% endif %}">
+<script type="application/ld+json">{{ jsonld|safe }}</script>
+<link rel="stylesheet" href="{{ base_path }}assets/page.css">
+</head>
+<body>
+<header class="dp-breadcrumb">
+<a href="{{ base_path }}">Drobné památky</a> › <a href="{{ base_path }}">mapa</a> › {{ title }}
+</header>
+<main class="dp-page">
+<h1>{{ title }}</h1>
+<p class="dp-meta"><strong>{{ druh }}</strong>{% if misto %} · {{ misto }}{% endif %}</p>
+{% if hero %}<img class="dp-hero" src="{{ hero }}" alt="{{ title }}" loading="lazy" width="250" height="250">{% endif %}
+{% if popis_html %}<div class="dp-popis">{{ popis_html|safe }}</div>{% endif %}
+<p class="dp-gps">GPS: <a href="https://www.openstreetmap.org/?mlat={{ lat }}&amp;mlon={{ lng }}&amp;zoom=16">{{ lat }}, {{ lng }}</a></p>
+<nav class="dp-actions">
+<a href="{{ base_path }}?p=/pamatka/{{ nid }}-{{ slug }}/">Zobrazit na mapě</a> ·
+<a href="https://www.drobnepamatky.cz/node/{{ nid }}" rel="external">Zdroj na drobnepamatky.cz</a>
+</nav>
+</main>
+<footer class="dp-footer">Archivační kopie · Data: <a href="https://www.drobnepamatky.cz/">drobnepamatky.cz</a></footer>
+</body>
+</html>
