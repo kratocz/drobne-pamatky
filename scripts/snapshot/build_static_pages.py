@@ -132,12 +132,27 @@ def _init_worker(lookups_path, template_dir):
     _WORKER_STATE["tpl"] = env.get_template("page.html.j2")
 
 
+def minify_html(html):
+    """Trivální minifikace: smazat řádky které jsou jen whitespace, strip vodorovný
+    whitespace mezi tagy (`>\\s+<` → `><`). Zachovává obsah uvnitř <script> a <p>
+    bloků (popis_html má významný whitespace). Úspora ~25 % na slim+ layoutu.
+    """
+    # Strip whitespace mezi tagy (mimo content)
+    html = re.sub(r">\s+<", "><", html)
+    # Strip vedoucí whitespace na řádcích
+    html = re.sub(r"\n\s+", "\n", html)
+    # Drop duplicate newlines
+    html = re.sub(r"\n+", "\n", html)
+    return html.strip()
+
+
 def _render_one(args):
     """Render 1 stránka. Vrací (nid, slug, lastmod, kraj_tid, status)."""
     nid, detail, kraj_tid = args
     try:
         ctx = build_context(nid, detail, _WORKER_STATE["lookups"])
         html = _WORKER_STATE["tpl"].render(**ctx)
+        html = minify_html(html)
         target_dir = OUT_DIR / "pamatka" / f"{nid}-{ctx['slug']}"
         target_dir.mkdir(parents=True, exist_ok=True)
         (target_dir / "index.html").write_text(html, encoding="utf-8")
