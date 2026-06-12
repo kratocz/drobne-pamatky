@@ -105,6 +105,10 @@ def build_context(nid, detail, lookups):
         "url": canonical,
         "isPartOf": {"@type": "WebSite", "name": "Drobné památky", "url": SITE_BASE},
     }, ensure_ascii=False, separators=(",", ":"))
+    # XSS hardening: < / > v JSON content musí být escaped jako < / >,
+    # jinak <script>...</script> v title/description vyústí ze `<script type="application/ld+json">`
+    # bloku jako exekuovatelný kód (potvrzeno Playwright testem, issue #5).
+    jsonld = jsonld.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
 
     return {
         "nid": nid, "slug": slug, "title": title, "description": description,
@@ -126,7 +130,11 @@ def _init_worker(lookups_path, template_dir):
     # nosemgrep: python.flask.security.xss.audit.direct-use-of-jinja2.direct-use-of-jinja2
     env = Environment(
         loader=FileSystemLoader(str(template_dir)),
-        autoescape=select_autoescape(["html", "xml"]),
+        autoescape=select_autoescape(
+            enabled_extensions=("html", "xml", "j2"),
+            default_for_string=True,
+            default=True,
+        ),
         trim_blocks=True, lstrip_blocks=True,
     )
     _WORKER_STATE["tpl"] = env.get_template("page.html.j2")
@@ -243,7 +251,11 @@ def main():
     # nosemgrep: python.flask.security.xss.audit.direct-use-of-jinja2.direct-use-of-jinja2
     env = Environment(
         loader=FileSystemLoader(str(TEMPLATES_DIR)),
-        autoescape=select_autoescape(["html", "xml"]),
+        autoescape=select_autoescape(
+            enabled_extensions=("html", "xml", "j2"),
+            default_for_string=True,
+            default=True,
+        ),
         trim_blocks=True, lstrip_blocks=True,
     )
     write_sitemaps(rendered, build_date, env)
