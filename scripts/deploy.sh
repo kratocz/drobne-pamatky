@@ -120,8 +120,9 @@ rsync -a "$REPO_ROOT/data/" data/
 ls "$REPO_ROOT"/sitemap-*.xml 2>/dev/null | xargs -I {} cp {} . 2>/dev/null
 [ -f "$REPO_ROOT/robots.txt" ] && cp "$REPO_ROOT/robots.txt" .
 # Ověřovací soubory search engines (Google Search Console, Bing Webmaster, ...)
-ls "$REPO_ROOT"/google*.html 2>/dev/null | xargs -I {} cp {} . 2>/dev/null
-ls "$REPO_ROOT"/BingSiteAuth.xml 2>/dev/null | xargs -I {} cp {} . 2>/dev/null
+for f in "$REPO_ROOT"/google*.html "$REPO_ROOT"/BingSiteAuth.xml; do
+    [ -f "$f" ] && cp "$f" .
+done
 cp "$REPO_ROOT/index.html" .
 cp "$REPO_ROOT/404.html" .
 cp "$REPO_ROOT/LICENSE" .
