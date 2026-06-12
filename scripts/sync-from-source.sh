@@ -126,7 +126,7 @@ echo "  ✓ tunel živý (PID $(cat "$SSH_PID_FILE"))"
 
 # ── 4. export.py ──────────────────────────────────────────────────────
 echo
-echo "─── [1/7] export.py (data + manifest) ───"
+echo "─── [1/8] export.py (data + manifest) ───"
 EXPORT_ARGS=()
 if [[ -n "$LIMIT" ]]; then
     EXPORT_ARGS+=(--limit "$LIMIT")
@@ -135,12 +135,17 @@ fi
 
 # ── 5. build_search_index.js ──────────────────────────────────────────
 echo
-echo "─── [2/7] build_search_index.js ───"
+echo "─── [2/8] build_search_index.js ───"
 (cd scripts/snapshot && node build_search_index.js)
+
+# ── 5b. build_static_pages.py (issue #5) ──────────────────────────────
+echo
+echo "─── [2b/8] build_static_pages.py ───"
+(cd scripts/snapshot && uv run python build_static_pages.py)
 
 # ── 6. Manifest diff ──────────────────────────────────────────────────
 echo
-echo "─── [3/7] manifest diff (existing thumbs vs. wanted JPG) ───"
+echo "─── [3/8] manifest diff (existing thumbs vs. wanted JPG) ───"
 THUMBS_TO_GENERATE="$TMP_DIR/thumbs-to-generate.txt"
 THUMBS_TO_DELETE="$TMP_DIR/thumbs-to-delete.txt"
 JPG_TO_RSYNC="$TMP_DIR/jpg-to-rsync.txt"
@@ -165,7 +170,7 @@ echo "  → $GEN_COUNT k vygenerování, $DEL_COUNT ke smazání, $RSYNC_COUNT J
 JPG_DOWNLOAD_DIR="$TMP_DIR/originals"
 if [[ "$RSYNC_COUNT" -gt 0 ]]; then
     echo
-    echo "─── [4/7] rsync $RSYNC_COUNT JPG z VPS → $JPG_DOWNLOAD_DIR ───"
+    echo "─── [4/8] rsync $RSYNC_COUNT JPG z VPS → $JPG_DOWNLOAD_DIR ───"
     mkdir -p "$JPG_DOWNLOAD_DIR"
     # rsync --files-from čte seznam relativních cest, z VPS web rootu.
     # --ignore-missing-args: chybí-li některý zdrojový soubor (stale DB.files
@@ -177,13 +182,13 @@ if [[ "$RSYNC_COUNT" -gt 0 ]]; then
         | tail -5
 else
     echo
-    echo "─── [4/7] rsync skip (0 JPG ke stažení) ───"
+    echo "─── [4/8] rsync skip (0 JPG ke stažení) ───"
 fi
 
 # ── 8. build_thumbnails.py --only ─────────────────────────────────────
 if [[ "$GEN_COUNT" -gt 0 ]]; then
     echo
-    echo "─── [5/7] build_thumbnails.py --only ($GEN_COUNT thumbs) ───"
+    echo "─── [5/8] build_thumbnails.py --only ($GEN_COUNT thumbs) ───"
     # Smaž existující AVIF pro to-generate (build_thumbnails.convert_one má
     # legacy "cached" check: pokud target existuje, neoverwrites. Sync skript
     # ale chce při (size, timestamp) změně regenerate.
@@ -196,13 +201,13 @@ if [[ "$GEN_COUNT" -gt 0 ]]; then
         uv run python build_thumbnails.py --only "$JPG_TO_RSYNC")
 else
     echo
-    echo "─── [5/7] build_thumbnails skip (0 ke generování) ───"
+    echo "─── [5/8] build_thumbnails skip (0 ke generování) ───"
 fi
 
 # ── 9. Cleanup obsolete thumbs ────────────────────────────────────────
 if [[ "$DEL_COUNT" -gt 0 ]]; then
     echo
-    echo "─── [6/7] mazání $DEL_COUNT obsolete thumbs ───"
+    echo "─── [6/8] mazání $DEL_COUNT obsolete thumbs ───"
     while IFS= read -r thumb_path; do
         [[ -z "$thumb_path" ]] && continue
         rm -f "data/thumbs/$thumb_path"
@@ -211,18 +216,24 @@ if [[ "$DEL_COUNT" -gt 0 ]]; then
     find data/thumbs -type d -empty -delete 2>/dev/null || true
 else
     echo
-    echo "─── [6/7] cleanup skip (0 obsolete) ───"
+    echo "─── [6/8] cleanup skip (0 obsolete) ───"
 fi
 
 # ── 10. Kopie out/* do data/ + nový manifest ──────────────────────────
 echo
-echo "─── [7/7] kopie out/ → data/ + thumbs-manifest update ───"
+echo "─── [7/8] kopie out/ → data/ + thumbs-manifest update ───"
 cp scripts/snapshot/out/pamatky.geojson data/
 cp scripts/snapshot/out/lookups.json data/
 cp scripts/snapshot/out/search-index.json data/
 # details/ je adresář bucketů — kopírujeme celý
 rm -rf data/details
 cp -R scripts/snapshot/out/details data/
+# Per-pamatka HTML + sitemap + robots (issue #5)
+rm -rf data/pamatka
+cp -R scripts/snapshot/out/pamatka data/
+cp scripts/snapshot/out/sitemap.xml data/
+cp scripts/snapshot/out/sitemap-*.xml data/
+cp scripts/snapshot/out/robots.txt data/
 # Nový thumbs-manifest (z Tasku 3 helperu)
 cp "$NEW_MANIFEST" data/thumbs-manifest.json
 
