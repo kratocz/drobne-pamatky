@@ -75,7 +75,6 @@ check("jsonld obsahuje Place", ctx["jsonld"], "Place", mode="in")
 check("jsonld obsahuje geo", ctx["jsonld"], "GeoCoordinates", mode="in")
 check("jsonld_breadcrumb existuje", ctx["jsonld_breadcrumb"], "BreadcrumbList", mode="in")
 check("jsonld_breadcrumb obsahuje title", ctx["jsonld_breadcrumb"], "Socha sv. Iva", mode="in")
-check("jsonld_breadcrumb obsahuje misto", ctx["jsonld_breadcrumb"], "Praha", mode="in")
 check("jsonld_breadcrumb obsahuje Drobné památky", ctx["jsonld_breadcrumb"], "Drobné památky", mode="in")
 check("jsonld_breadcrumb XSS-safe (< escaped)", ctx["jsonld_breadcrumb"], "<", mode="not_in")
 
@@ -103,6 +102,6 @@ check("popis_html neobsahuje exec script", ctx4["popis_html"], "<script>alert", 
 check("jsonld breadcrumb XSS-safe (title)", ctx4["jsonld_breadcrumb"], "<script>", mode="not_in")
 
 print()
-total = 30
+total = 29
 print(f"{total - failed}/{total} passed")
 sys.exit(0 if failed == 0 else 1)

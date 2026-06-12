@@ -106,23 +106,17 @@ def build_context(nid, detail, lookups):
         "isPartOf": {"@type": "WebSite", "name": "Drobné památky", "url": SITE_BASE},
     })
 
-    # BreadcrumbList JSON-LD (issue #12): 2-3 položky pro Google Rich Result.
-    # Druhá položka (místo) je text-only bez `item`/url — kraj-route v SPA
-    # zatím neexistuje, a Google ListItem bez url akceptuje (text breadcrumb).
-    breadcrumb_items = [
-        {"@type": "ListItem", "position": 1, "name": "Drobné památky", "item": SITE_BASE},
-    ]
-    if misto:
-        breadcrumb_items.append({"@type": "ListItem", "position": 2, "name": misto})
-    breadcrumb_items.append({
-        "@type": "ListItem",
-        "position": len(breadcrumb_items) + 1,
-        "name": title,
-    })
+    # BreadcrumbList JSON-LD (issue #12): minimal 2-item verze. Plná hierarchie
+    # kraj/okres/obec čeká na #13 (SPA kraj/okres/obec routy). Google Rich Results
+    # Test odmítl 3-item verzi s "Chybí pole item" (Schema.org vyžaduje URL u všech
+    # ListItem kromě posledního). Tato 2-item verze je validní.
     jsonld_breadcrumb = _jsonld_dump({
         "@context": "https://schema.org",
         "@type": "BreadcrumbList",
-        "itemListElement": breadcrumb_items,
+        "itemListElement": [
+            {"@type": "ListItem", "position": 1, "name": "Drobné památky", "item": SITE_BASE},
+            {"@type": "ListItem", "position": 2, "name": title},
+        ],
     })
 
     return {
