@@ -229,11 +229,13 @@ cp scripts/snapshot/out/search-index.json data/
 rm -rf data/details
 cp -R scripts/snapshot/out/details data/
 # Per-pamatka HTML + sitemap + robots (issue #5)
-rm -rf data/pamatka
-cp -R scripts/snapshot/out/pamatka data/
-cp scripts/snapshot/out/sitemap.xml data/
-cp scripts/snapshot/out/sitemap-*.xml data/
-cp scripts/snapshot/out/robots.txt data/
+# Pozor: kopírujeme do repo ROOT (ne do data/), protože URL struktura
+# má /pamatka/<nid>-<slug>/ a /sitemap.xml na root úrovni gh-pages.
+rm -rf "$REPO_ROOT/pamatka"
+cp -R scripts/snapshot/out/pamatka "$REPO_ROOT/"
+cp scripts/snapshot/out/sitemap.xml "$REPO_ROOT/"
+cp scripts/snapshot/out/sitemap-*.xml "$REPO_ROOT/"
+cp scripts/snapshot/out/robots.txt "$REPO_ROOT/"
 # Nový thumbs-manifest (z Tasku 3 helperu)
 cp "$NEW_MANIFEST" data/thumbs-manifest.json
 

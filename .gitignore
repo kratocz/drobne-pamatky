@@ -35,12 +35,13 @@ build/
 # Stejné dilema jako details/ - zatím gitignore
 /data/search-index.json
 
-# Per-pamatka HTML + sitemap (~120 MB, 82k souborů) - generuje scripts/snapshot/build_static_pages.py
-# Lokálně produkované, deploy.sh kopíruje na gh-pages
-/data/pamatka/
-/data/sitemap.xml
-/data/sitemap-*.xml
-/data/robots.txt
+# Per-pamatka HTML + sitemap (~222 MB, 82k souborů) - generuje scripts/snapshot/build_static_pages.py
+# Lokálně produkované, deploy.sh kopíruje na gh-pages root
+# Pozn.: cesty v repo ROOT (ne v data/), protože URL struktura má /pamatka/... a /sitemap.xml.
+/pamatka/
+/sitemap.xml
+/sitemap-*.xml
+/robots.txt
 
 # Master GeoJSON + lookups (~8 MB + ~80 KB) - generuje scripts/snapshot/export.py
 # Lokálně produkované sync-from-source.sh; gh-pages deploy je kopíruje samostatně

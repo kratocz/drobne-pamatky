@@ -114,6 +114,11 @@ mkdir -p src assets data
 rsync -a "$REPO_ROOT/src/" src/
 rsync -a "$REPO_ROOT/assets/" assets/
 rsync -a "$REPO_ROOT/data/" data/
+# Per-pamatka HTML + sitemap + robots (issue #5) — pokud existují
+[ -d "$REPO_ROOT/pamatka" ] && rsync -a "$REPO_ROOT/pamatka/" pamatka/
+[ -f "$REPO_ROOT/sitemap.xml" ] && cp "$REPO_ROOT/sitemap.xml" .
+ls "$REPO_ROOT"/sitemap-*.xml 2>/dev/null | xargs -I {} cp {} . 2>/dev/null
+[ -f "$REPO_ROOT/robots.txt" ] && cp "$REPO_ROOT/robots.txt" .
 cp "$REPO_ROOT/index.html" .
 cp "$REPO_ROOT/404.html" .
 cp "$REPO_ROOT/LICENSE" .
