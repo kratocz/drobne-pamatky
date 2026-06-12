@@ -73,6 +73,11 @@ check("description z popisu", ctx["description"], "Krátký popis", mode="in")
 check("popis_html escapovaný", ctx["popis_html"], "Krátký popis", mode="in")
 check("jsonld obsahuje Place", ctx["jsonld"], "Place", mode="in")
 check("jsonld obsahuje geo", ctx["jsonld"], "GeoCoordinates", mode="in")
+check("jsonld_breadcrumb existuje", ctx["jsonld_breadcrumb"], "BreadcrumbList", mode="in")
+check("jsonld_breadcrumb obsahuje title", ctx["jsonld_breadcrumb"], "Socha sv. Iva", mode="in")
+check("jsonld_breadcrumb obsahuje misto", ctx["jsonld_breadcrumb"], "Praha", mode="in")
+check("jsonld_breadcrumb obsahuje Drobné památky", ctx["jsonld_breadcrumb"], "Drobné památky", mode="in")
+check("jsonld_breadcrumb XSS-safe (< escaped)", ctx["jsonld_breadcrumb"], "<", mode="not_in")
 
 # Edge: prázdný popis → fallback description
 empty_popis = dict(minimal)
@@ -95,8 +100,9 @@ xss["popis"] = {"text": "<script>alert(2)</script>"}
 ctx4 = build_context(1234, xss, LOOKUPS_FIXTURE)
 check("title escapován v popis_html context", ctx4["popis_html"], "&lt;script&gt;", mode="in")
 check("popis_html neobsahuje exec script", ctx4["popis_html"], "<script>alert", mode="not_in")
+check("jsonld breadcrumb XSS-safe (title)", ctx4["jsonld_breadcrumb"], "<script>", mode="not_in")
 
 print()
-total = 24
+total = 30
 print(f"{total - failed}/{total} passed")
 sys.exit(0 if failed == 0 else 1)

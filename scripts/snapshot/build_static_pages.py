@@ -95,7 +95,7 @@ def build_context(nid, detail, lookups):
     # popis_html: bleach-sanitized z #8; \n → <br>. markupsafe.escape pro defense in depth.
     popis_html = str(escape(popis_text)).replace("\n", "<br>") if popis_text else ""
 
-    jsonld = json.dumps({
+    jsonld = _jsonld_dump({
         "@context": "https://schema.org",
         "@type": "Place",
         "name": title,
@@ -104,11 +104,26 @@ def build_context(nid, detail, lookups):
         "geo": {"@type": "GeoCoordinates", "latitude": lat, "longitude": lng},
         "url": canonical,
         "isPartOf": {"@type": "WebSite", "name": "Drobné památky", "url": SITE_BASE},
-    }, ensure_ascii=False, separators=(",", ":"))
-    # XSS hardening: < / > v JSON content musí být escaped jako < / >,
-    # jinak <script>...</script> v title/description vyústí ze `<script type="application/ld+json">`
-    # bloku jako exekuovatelný kód (potvrzeno Playwright testem, issue #5).
-    jsonld = jsonld.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+    })
+
+    # BreadcrumbList JSON-LD (issue #12): 2-3 položky pro Google Rich Result.
+    # Druhá položka (místo) je text-only bez `item`/url — kraj-route v SPA
+    # zatím neexistuje, a Google ListItem bez url akceptuje (text breadcrumb).
+    breadcrumb_items = [
+        {"@type": "ListItem", "position": 1, "name": "Drobné památky", "item": SITE_BASE},
+    ]
+    if misto:
+        breadcrumb_items.append({"@type": "ListItem", "position": 2, "name": misto})
+    breadcrumb_items.append({
+        "@type": "ListItem",
+        "position": len(breadcrumb_items) + 1,
+        "name": title,
+    })
+    jsonld_breadcrumb = _jsonld_dump({
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": breadcrumb_items,
+    })
 
     return {
         "nid": nid, "slug": slug, "title": title, "description": description,
@@ -117,7 +132,18 @@ def build_context(nid, detail, lookups):
         "hero": hero, "hero_abs": hero_abs,
         "popis_html": popis_html, "lat": lat, "lng": lng,
         "jsonld": jsonld,
+        "jsonld_breadcrumb": jsonld_breadcrumb,
     }
+
+
+def _jsonld_dump(obj):
+    """JSON dump + XSS hardening: < / > / & na \\u003c / \\u003e / \\u0026.
+    Bez tohoto by <script>...</script> v JSON content (např. v title)
+    ukončil outer `<script type="application/ld+json">` blok a stal se
+    exekuovatelným inline scriptem (Playwright test potvrdil v #5).
+    """
+    out = json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
+    return out.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
 
 
 # ── Worker (multiprocessing.Pool) ───────────────────────────────────
