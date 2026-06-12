@@ -54,6 +54,43 @@ Co skript dělá:
 
 Pro nasazení změn do `gh-pages` po commitu: `bash scripts/deploy.sh`.
 
+## SEO + Search Console (per-pamatka HTML, issue #5)
+
+Statické per-pamatka HTML stránky (`/pamatka/<nid>-<slug>/index.html` × 82k) generuje `scripts/snapshot/build_static_pages.py` v rámci `sync-from-source.sh` (krok `[2b/8]`). Šablony v `scripts/snapshot/templates/`, šable `assets/page.css`. Sitemap rozdělen po 14 krajích + master index, povolen v `robots.txt`.
+
+**URL struktura na gh-pages:**
+- `https://kratocz.github.io/drobne-pamatky/pamatka/<nid>-<slug>/` — statická HTML pro crawlery
+- `https://kratocz.github.io/drobne-pamatky/sitemap.xml` — master sitemap index
+- `https://kratocz.github.io/drobne-pamatky/sitemap-<kraj>.xml` — per-kraj chunk
+- `https://kratocz.github.io/drobne-pamatky/robots.txt`
+
+### Google Search Console setup
+
+Jednorázová ruční operace pro prvotní registraci, dále už se nic nedělá (sitemap je submit-ovaný).
+
+1. https://search.google.com/search-console → **Add property** → URL prefix `https://kratocz.github.io/drobne-pamatky/`
+2. Verification method: **HTML file**. Google dá soubor typu `google<hash>.html`.
+3. Stáhnout, položit do **repo ROOT** (NE do `data/`): `cp ~/Downloads/google*.html .`
+4. Commit + push + `bash scripts/deploy.sh` (deploy.sh už má `for f in $REPO_ROOT/google*.html` glob, vezme to automaticky)
+5. Po cca minutě na GSC kliknout **Verify** → "Verified ✓"
+6. **Sitemaps** v levém menu → add `sitemap.xml` → Submit
+7. **Pages** ukazuje status indexace (prvních pár dní prázdné, pak začnou stránky „Indexed")
+
+Stejný postup funguje pro **Bing Webmaster Tools** — deploy.sh hledá také `BingSiteAuth.xml`.
+
+### Per-pamatka HTML lokální regenerate
+
+Bez SSH tunelu / DB (jen z existujícího exportu v `data/details/`):
+
+```bash
+cd scripts/snapshot
+# Připravit input pro pilot (kopie z existing data):
+mkdir -p out/details && cp ../../data/details/*.json out/details/ && cp ../../data/lookups.json out/
+# Build
+uv run python build_static_pages.py            # full 82k
+uv run python build_static_pages.py --limit 50 # pilot
+```
+
 ## Struktura
 
 ```
