@@ -91,6 +91,42 @@ uv run python build_static_pages.py            # full 82k
 uv run python build_static_pages.py --limit 50 # pilot
 ```
 
+## Gotchas a implementační poznámky
+
+Krátký seznam ne-očekávaných věcí, na které jsme narazili a které zaslouží vědomí před tím, než se na ně narazí znovu.
+
+### URL struktura na GitHub Pages = 1:1 s repo
+
+`deploy.sh` orphan-pushuje obsah repa do `gh-pages` branche. URL pak mapuje 1:1 strukturu repa. Konkrétně:
+
+- `data/lookups.json` v repu → `https://kratocz.github.io/drobne-pamatky/data/lookups.json` (NE `/lookups.json`)
+- `pamatka/<nid>-<slug>/index.html` v repu → `https://.../pamatka/<nid>-<slug>/`
+- `index.html` v repu → `https://.../` (SPA mapa)
+
+Důsledek: per-pamatka HTML stránky, `sitemap*.xml`, `robots.txt` musí být v **repo root**, ne v `data/`. Sync skript je tam kopíruje (`scripts/sync-from-source.sh` krok `[7/8]`), `.gitignore` má `/pamatka/`, `/sitemap*.xml`, `/robots.txt` na root úrovni.
+
+### Jinja2 `autoescape` + `.j2` extension
+
+`select_autoescape(["html", "xml"])` matchuje extensions `.html` a `.xml` — **NE** `.j2`. Naše šablony se jmenují `page.html.j2`, `sitemap.xml.j2`. Pro autoescape je nutno použít `enabled_extensions=("html", "xml", "j2")` + `default=True`.
+
+### JSON-LD `<script type="application/ld+json">` musí escape `<` `>` `&`
+
+JSON content uvnitř `<script type="application/ld+json">` neescapuje `<` `>` ze své povahy. Když title obsahuje `<script>...</script>`, browser ho interpretuje jako uzavření outer `<script>` bloku + nový exekuovatelný kód → XSS. Fix: post-process JSON output, escape `<` `>` `&` jako `<` `>` `&` (helper `_jsonld_dump` v `build_static_pages.py`).
+
+### `build_thumbnails.convert_one` má "cached" check
+
+Legacy chování: pokud výstupní AVIF už existuje, `convert_one` ho nepřepíše (vrátí status `cached`). Pro **refresh** scénář (změnil se zdrojový JPG → nutno re-encoduje) musí sync skript explicitně smazat target AVIF před voláním `build_thumbnails.py --only`. Implementováno v `sync-from-source.sh` krok `[5/8]`.
+
+### Drupal 6 `files.filepath` má prefix `files/<rok>/...`
+
+Ne `sites/default/files/<rok>/...` (běžný Drupal config), ale jen `files/<rok>/<basename>.jpg`. VPS web root `/www/drobnepamatky.cz/www/` je správný `rsync` source — `rsync --files-from` přijímá tyto cesty přímo. `filepath_to_thumb_path` v `sync_manifest_diff.py` z toho odvozuje thumb path `<rok>/<basename>.avif`.
+
+### DB credentials z `.env`, nikdy hardcoded
+
+`export.py`, `build_thumbnails.py`, `init_thumbs_manifest.py` čtou `OLD_DB_USER`, `OLD_DB_PASSWORD`, `OLD_DB_NAME` z env vars (typicky přes `set -a; source .env; set +a`). Sync skript (`sync-from-source.sh`) je nahraje sám. Host a port jsou hardcoded na `127.0.0.1:13306` (přes SSH tunel).
+
+V git historii **byl** kdysi hardcoded `password="xnet"` — heslo smazáno přes `git-filter-repo` a repo přepnuto na private. Pre-commit hook `gitleaks` (globální, `core.hooksPath`) předchází opakování.
+
 ## Struktura
 
 ```

@@ -34,7 +34,8 @@ Když zmizí kterákoli z vrstev, ostatní dvě stačí na rekonstrukci celku (p
 |---|:---:|:---:|:---:|
 | Mapa + JS (Leaflet, src/) | ✅ | – | ✅ source |
 | GeoJSON master + per-památka detail JSONy + lookups + search index | ✅ aktuální | ✅ master snapshot | ✅ generátor |
-| Náhledy fotek (AVIF 250×188 @ q50, **591 MB pro 115 729 souborů** ✓) | ✅ | – | – |
+| Náhledy fotek (AVIF 250×188 @ q50, **806 MB pro 111 988 souborů**, aktualizováno 2026-06-12) | ✅ | – | – |
+| Per-pamatka statické HTML stránky + sitemap.xml + robots.txt (issue #5, ~250 MB pro 81 988 stránek + 14 MB sitemap chunks) | ✅ | – | ✅ generátor (`build_static_pages.py`) |
 | Zdrojové fotky (JPG, max 1200 px, ~17 GB) | – | ✅ | – |
 | Bonus thumbs bundle (preset 300, ~1.6 GB, volitelné) | – | ⚠️ TBD | – |
 | CSV / XLSX export | ✅ malé, ✅ aktuální | ✅ snapshot/verze | – |
@@ -46,7 +47,7 @@ Když zmizí kterákoli z vrstev, ostatní dvě stačí na rekonstrukci celku (p
 
 ## L1 – Frontend (GitHub Pages)
 
-**Limit:** 1 GB published site, 100 GB bandwidth / měsíc (soft).
+**Limit:** 1 GB published site (**hard limit** — GH zablokuje deploy), 100 GB bandwidth / měsíc (soft).
 
 **Obsah:**
 - `index.html`, `src/`, `assets/` – aplikace (jednotky MB)
@@ -55,6 +56,9 @@ Když zmizí kterákoli z vrstev, ostatní dvě stačí na rekonstrukci celku (p
 - `data/lookups.json` – ID → name pro druhy a obce (~200 KB gzip)
 - `data/search-index.json` – pre-built search index (~2 MB gzip)
 - `data/thumbs/<rok>/<jméno>.avif` – náhledy fotek (max 250 px na delší straně, AVIF q50)
+- `pamatka/<nid>-<slug>/index.html` – statické per-pamatka stránky pro crawlery + lidi bez JS (82 k souborů × ~3 KB = ~250 MB, JSON-LD Place + BreadcrumbList, OG tagy, issue #5)
+- `sitemap.xml` + `sitemap-<kraj>.xml` × 15 – sitemap chunked po krajích (~14 MB total)
+- `robots.txt` – povoluje crawlery, odkazuje na sitemap
 
 ### L1 – Data delivery
 
@@ -109,19 +113,19 @@ Když zmizí kterákoli z vrstev, ostatní dvě stačí na rekonstrukci celku (p
 | Formát | AVIF (`avifenc --speed 6 -q 50`) |
 | Max delší strana | 250 px |
 | Typický náhled | **~5.1 KB** ✓ (naměřeno) |
-| **Plný archiv (115 729 fotek)** ✓ | **591 MB** (skutečný obsah) |
-| Rezerva do 750 MB target | **159 MB** ✓ |
-| Rezerva do 1 GB Pages limitu | **433 MB** ✓ |
-| Použitelná pro budoucí růst | ~5–10 let při stávajícím tempu nahrávání |
+| **Plný archiv (111 988 fotek, k 2026-06-12)** | **806 MB** (skutečný obsah) |
+| Rezerva do 750 MB target | **-56 MB** ⚠️ (target překročen — viz pozn. níže) |
+| Rezerva do 1 GB Pages hard limitu | **218 MB** (s dalšími soubory v `data/` méně, viz celkový výpočet níže) |
+| Použitelná pro budoucí růst | ~3–5 let při stávajícím tempu nahrávání |
 | Browser support | ~94 % (Chrome 85+, FF 93+, Safari 16.4+, Edge 121+) |
 | Fallback pro ~6 % | textový `alt` (název / druh / obec), žádné WebP/JPEG fallback soubory |
 | Čas batchu (10-core M1) | **28.6 min** ✓ pro 125 152 souborů (73 fotek/s průměr) |
 | Missing v mirroru | 9 419 (DB má, lokální rsync mirror ne – nově nahrané po posledním rsync) |
 | Errors | 4 (poškozené source JPGs nebo nečitelné EXIF) |
 
-> ✓ = naměřeno batchem 2026-06-01 (`scripts/snapshot/build_thumbnails.py`). Originální plán předpokládal 677 MB pro 125 k souborů – realita 591 MB je o 86 MB lepší díky AVIF q50 efektivitě na 250 px rozměru.
+> ✓ = naměřeno batchem 2026-06-01 (`scripts/snapshot/build_thumbnails.py`). Originální plán předpokládal 677 MB pro 125 k souborů – pilot 2026-06-01 ukázal 591 MB pro 115 729 souborů. Po doplnění zbývajících thumbs (Test 5 sync 2026-06-12) je skutečnost 806 MB pro 111 988 souborů; vyšší celkové číslo přes nižší počet souborů odráží mírně větší průměrnou velikost AVIF (5.1 KB → 7.5 KB) na novějších fotkách z roku 2024-2026 s vyšším rozlišením originálů.
 
-**Cílový rozpočet pro náhledy v repu:** 750 MB (rezerva 250 MB do 1 GB Pages limitu pro budoucí růst archivu).
+**Cílový rozpočet pro náhledy v repu:** původně 750 MB (rezerva 250 MB do 1 GB Pages hard limitu). Aktuální stav 806 MB tento target překračuje o 56 MB. Po nasazení per-pamatka HTML (#5, ~247 MB) a sitemap (~14 MB) je celkový gh-pages footprint **~910 MB raw** (data/ 649 MB + pamatka/ 247 MB + sitemap 14 MB) — pod 1 GB hard limit, ale s úzkou rezervou **~114 MB**. Pro budoucí růst archivu (~50 MB/rok thumbs + růst HTML) je potřeba do 2-3 let buď snížit kvalitu thumbs (q40), zmenšit rozměr (200 px), nebo přesunout thumbs na CDN.
 
 **Empirické rozměry × quality** – data, na základě kterých bylo rozhodnuto (sample 50 reálných fotek z `files/2024/`, encoder `avifenc -q <Q> --speed 6` / `cwebp -q <Q>`, resize `sips -Z`, extrapolace na 125 k souborů):
 
@@ -168,11 +172,11 @@ Moderní GitHub Pages podporuje deploy přes `actions/upload-pages-artifact` + `
 
 | Limit | Hodnota | Náš stav | Riziko |
 |---|---|---|---|
-| Pages artifact size | **1 GB official** | tar.gz ~650 MB | rezerva 35 %, ale s růstem archivu (~50 MB/rok) za 3–5 let přesáhneme |
-| Deploy unpack timeout | **10 min** na unpack tarball na Pages backend | ~116 k souborů (115 k AVIF + 15 JSON + ostatní) | malé soubory pomalý per-file unpack, **na hraně 10-min timeout** |
+| Pages artifact size | **1 GB hard limit** | gh-pages raw ~910 MB k 2026-06-12 (data/ 649 + pamatka/ 247 + sitemap 14) | rezerva ~114 MB, s růstem archivu (~50 MB/rok) za 2–3 roky přesáhneme |
+| Deploy unpack timeout | **10 min** na unpack tarball na Pages backend | ~194 k souborů (112 k AVIF + 82 k HTML + 16 sitemap + JSON + ostatní) | malé soubory pomalý per-file unpack, **na hraně 10-min timeout** |
 | Build čas Actions runner | 4 vCPU `ubuntu-latest` | thumbnail batch lokálně 28.6 min (M1 Pro 10-core) → odhad **~2 hod v Actions** | OK pro public repo (zdarma), ale dlouhý dev cycle |
 
-**Závěr:** varianta C (Pages Actions artifact) dává smysl pro menší sites (< 500 MB, < 10 k souborů). Pro naše 893 MB / 116 k souborů je **varianta B (gh-pages branch) bezpečnější** – Pages serveruje přímo z git stromu, žádný unpack-timeout, push trvá pár minut bez backend deadline. Repo size zůstává stabilní díky orphan force-push.
+**Závěr:** varianta C (Pages Actions artifact) dává smysl pro menší sites (< 500 MB, < 10 k souborů). Pro naše 910 MB / 194 k souborů je **varianta B (gh-pages branch) bezpečnější** – Pages serveruje přímo z git stromu, žádný unpack-timeout, push trvá pár minut bez backend deadline. Repo size zůstává stabilní díky orphan force-push.
 
 #### Cloudflare před Pages (volitelné, pro vyšší návštěvnost)
 
