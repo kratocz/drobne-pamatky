@@ -2,11 +2,12 @@
 # z drobnepamatky.cz) pro vývoj export skriptů. Žádné citlivé persistence – jen
 # scratchpad pro pilot queries a generování JSON snapshotů.
 #
-# Spuštění:
+# Spuštění (vyžaduje proměnnou OLD_DB_PASSWORD z .env):
+#   set -a; source ../../.env; set +a
 #   docker compose -f scripts/snapshot/docker-compose.yml up -d
 # Import dumpu (jednou):
 #   gzip -dc ~/IdeaProjects/github.com/kratocz/drobnepamatky.cz/backups/gk66-*.sql.gz \
-#     | docker exec -i dp-gk66 mariadb -u root -pREDACTED gk66
+#     | docker exec -i dp-gk66 mariadb -u root -p"$OLD_DB_PASSWORD" gk66
 # Vypnout:
 #   docker compose -f scripts/snapshot/docker-compose.yml down
 # Smazat data:
@@ -19,7 +20,7 @@ services:
     ports:
       - "13306:3306"
     environment:
-      MARIADB_ROOT_PASSWORD: REDACTED
+      MARIADB_ROOT_PASSWORD: ${OLD_DB_PASSWORD:?OLD_DB_PASSWORD must be set in .env}
       MARIADB_DATABASE: gk66
       MARIADB_AUTO_UPGRADE: "1"
     volumes:

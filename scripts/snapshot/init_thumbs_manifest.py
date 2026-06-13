@@ -21,15 +21,22 @@ Vyžaduje aktivní SSH tunel na port 13306 (viz AGENTS.md sekce Starý server).
 """
 
 import json
+import os
 from pathlib import Path
 
 import pymysql
 
 from sync_manifest_diff import filepath_to_thumb_path
 
-DB_CFG = dict(host="127.0.0.1", port=13306, user="root", password="REDACTED",
-              database="gk66", charset="utf8",
-              cursorclass=pymysql.cursors.DictCursor)
+DB_CFG = dict(
+    host="127.0.0.1",
+    port=13306,
+    user=os.environ["OLD_DB_USER"],
+    password=os.environ["OLD_DB_PASSWORD"],
+    database=os.environ["OLD_DB_NAME"],
+    charset="utf8",
+    cursorclass=pymysql.cursors.DictCursor,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 THUMBS_DIR = REPO_ROOT / "data" / "thumbs"

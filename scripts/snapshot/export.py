@@ -58,8 +58,21 @@ def sanitize_body(text, fmt):
     return clean or None
 
 
-DB_CFG = dict(host="127.0.0.1", port=13306, user="root", password="REDACTED",
-              database="gk66", charset="utf8")
+def _db_cfg_from_env():
+    """Načti DB credentials z .env (viz .env.example). Host/port jsou hardcoded
+    na 127.0.0.1:13306 protože sync skript drží SSH tunel na tomto portu;
+    OLD_DB_HOST/OLD_DB_PORT v .env je pro nezávislé manuální nástroje (mysql CLI)."""
+    return dict(
+        host="127.0.0.1",
+        port=13306,
+        user=os.environ["OLD_DB_USER"],
+        password=os.environ["OLD_DB_PASSWORD"],
+        database=os.environ["OLD_DB_NAME"],
+        charset="utf8",
+    )
+
+
+DB_CFG = _db_cfg_from_env()
 
 OUT_DIR = os.path.join(os.path.dirname(__file__), "out")
 DETAILS_DIR = os.path.join(OUT_DIR, "details")

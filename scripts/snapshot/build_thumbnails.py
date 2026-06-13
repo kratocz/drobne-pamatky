@@ -40,8 +40,14 @@ MIRROR_ROOT = Path(os.environ.get(
 ))
 REPO_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_ROOT = REPO_ROOT / "data" / "thumbs"
-DB_CFG = dict(host="127.0.0.1", port=13306, user="root", password="REDACTED",
-              database="gk66", charset="utf8")
+DB_CFG = dict(
+    host="127.0.0.1",
+    port=13306,
+    user=os.environ["OLD_DB_USER"],
+    password=os.environ["OLD_DB_PASSWORD"],
+    database=os.environ["OLD_DB_NAME"],
+    charset="utf8",
+)
 
 
 def fetch_jpg_paths(limit=None):
