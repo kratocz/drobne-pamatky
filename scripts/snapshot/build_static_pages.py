@@ -54,7 +54,7 @@ def slugify(text):
     return s[:80].rstrip("-")
 
 
-def build_context(nid, detail, lookups):
+def build_context(nid, detail, lookups, cf_beacon=""):
     """Připraví dict pro jinja2 page.html.j2 render."""
     title = detail.get("title", "") or ""
     popis_block = detail.get("popis") or {}
@@ -127,7 +127,23 @@ def build_context(nid, detail, lookups):
         "popis_html": popis_html, "lat": lat, "lng": lng,
         "jsonld": jsonld,
         "jsonld_breadcrumb": jsonld_breadcrumb,
+        "cf_beacon": cf_beacon,
     }
+
+
+def _cf_beacon_snippet():
+    """Cloudflare Web Analytics beacon snippet z env CF_BEACON_TOKEN (issue #14).
+    Prázdný string pokud token není nastaven (fork-friendly).
+    Token musí být 32-hex (CF beacon formát) — jinak ignorován jako obrana
+    proti injekci nevalidní hodnoty do HTML (defense in depth, viz #5 XSS).
+    SRI/integrity záměrně vynechán — beacon.min.js je mutable URL."""
+    token = os.environ.get("CF_BEACON_TOKEN", "").strip()
+    if not re.fullmatch(r"[0-9a-f]{32}", token):
+        return ""
+    return (
+        '<script defer src="https://static.cloudflareinsights.com/beacon.min.js" '
+        f'data-cf-beacon=\'{{"token": "{token}"}}\'></script>'
+    )
 
 
 def _jsonld_dump(obj):

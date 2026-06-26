@@ -7,7 +7,7 @@ Exit code 0 = pass, 1 = aspoň jeden FAIL.
 """
 
 import sys
-from build_static_pages import slugify, build_context
+from build_static_pages import slugify, build_context, _cf_beacon_snippet
 
 LOOKUPS_FIXTURE = {
     "druh": {"5": "Kříž", "10": "Socha"},
@@ -101,7 +101,32 @@ check("title escapován v popis_html context", ctx4["popis_html"], "&lt;script&g
 check("popis_html neobsahuje exec script", ctx4["popis_html"], "<script>alert", mode="not_in")
 check("jsonld breadcrumb XSS-safe (title)", ctx4["jsonld_breadcrumb"], "<script>", mode="not_in")
 
+# ── cf_beacon (issue #14) ──────────────────────────────────────────
+print("\ncf_beacon:")
+import os as _os
+
+# build_context default cf_beacon → prázdný
+check("build_context bez cf_beacon → prázdný", build_context(1234, minimal, LOOKUPS_FIXTURE).get("cf_beacon", "MISSING"), "")
+# build_context s cf_beacon param → vloží
+ctx_b = build_context(1234, minimal, LOOKUPS_FIXTURE, cf_beacon="<beacon-snippet>")
+check("build_context s cf_beacon → vloží", ctx_b["cf_beacon"], "<beacon-snippet>")
+
+# _cf_beacon_snippet: validní 32-hex token
+_os.environ["CF_BEACON_TOKEN"] = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+check("snippet validní token → obsahuje beacon.min.js", _cf_beacon_snippet(), "beacon.min.js", mode="in")
+check("snippet validní token → obsahuje token", _cf_beacon_snippet(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", mode="in")
+check("snippet validní token → má defer", _cf_beacon_snippet(), "<script defer", mode="in")
+# nevalidní token (krátký)
+_os.environ["CF_BEACON_TOKEN"] = "xyz"
+check("snippet nevalidní token → prázdný", _cf_beacon_snippet(), "")
+# XSS pokus v tokenu
+_os.environ["CF_BEACON_TOKEN"] = "'><script>alert(1)</script>"
+check("snippet XSS token → prázdný", _cf_beacon_snippet(), "")
+# bez env
+del _os.environ["CF_BEACON_TOKEN"]
+check("snippet bez env → prázdný", _cf_beacon_snippet(), "")
+
 print()
-total = 29
+total = 37
 print(f"{total - failed}/{total} passed")
 sys.exit(0 if failed == 0 else 1)
