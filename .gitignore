@@ -52,3 +52,6 @@ build/
 
 # Visual companion (brainstorming mockups)
 .superpowers/
+
+# Playwright MCP (browser automation artefakty)
+.playwright-mcp/
