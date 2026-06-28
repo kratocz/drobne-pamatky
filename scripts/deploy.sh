@@ -137,10 +137,18 @@ if [[ -f "$REPO_ROOT/.env" ]]; then
 fi
 bash "$REPO_ROOT/scripts/inject-beacon.sh" . "${CF_BEACON_TOKEN:-}"
 
-# Deploy-specific .gitignore (jen macOS junk – data jsou jasně chtěná)
+# gitleaks config do worktree, aby pre-commit hook (core.hooksPath) propustil
+# CF beacon token v 82k HTML (allowlist na data-cf-beacon kontext). Bez něj by
+# gitleaks v worktree našel jen default pravidla → token = falešný leak → blok.
+# Soubor se NEcommituje do gh-pages (viz .gitignore níže) — na produkci nepatří.
+[ -f "$REPO_ROOT/.gitleaks.toml" ] && cp "$REPO_ROOT/.gitleaks.toml" .
+
+# Deploy-specific .gitignore (jen macOS junk – data jsou jasně chtěná +
+# .gitleaks.toml, který je jen pro lokální pre-commit scan, ne pro web).
 cat > .gitignore <<'EOF'
 .DS_Store
 ._*
+.gitleaks.toml
 EOF
 
 echo "  ✓ zkopírováno"
