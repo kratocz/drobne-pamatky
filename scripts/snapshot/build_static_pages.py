@@ -163,6 +163,7 @@ _WORKER_STATE = {}
 def _init_worker(lookups_path, template_dir):
     """Per-proces init: nahrát lookups + zkompilovat šablonu jednou."""
     _WORKER_STATE["lookups"] = json.loads(Path(lookups_path).read_text(encoding="utf-8"))
+    _WORKER_STATE["cf_beacon"] = _cf_beacon_snippet()
     # nosemgrep: python.flask.security.xss.audit.direct-use-of-jinja2.direct-use-of-jinja2
     env = Environment(
         loader=FileSystemLoader(str(template_dir)),
@@ -194,7 +195,8 @@ def _render_one(args):
     """Render 1 stránka. Vrací (nid, slug, lastmod, kraj_tid, status)."""
     nid, detail, kraj_tid = args
     try:
-        ctx = build_context(nid, detail, _WORKER_STATE["lookups"])
+        ctx = build_context(nid, detail, _WORKER_STATE["lookups"],
+                            cf_beacon=_WORKER_STATE.get("cf_beacon", ""))
         html = _WORKER_STATE["tpl"].render(**ctx)
         html = minify_html(html)
         target_dir = OUT_DIR / "pamatka" / f"{nid}-{ctx['slug']}"
