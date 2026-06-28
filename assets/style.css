@@ -1,0 +1,580 @@
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #1f2937;
+    background: #f9fafb;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+}
+
+.app-header {
+    padding: 0.75rem 1.25rem;
+    background: #1f2937;
+    color: #f9fafb;
+    border-bottom: 3px solid #d97706;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.header-left {
+    flex: 1 1 auto;
+    min-width: 200px;
+}
+
+.app-header h1 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.app-header .subtitle {
+    margin: 0.15rem 0 0;
+    font-size: 0.8rem;
+    color: #d1d5db;
+}
+
+.app-header a {
+    color: #fbbf24;
+    text-decoration: none;
+}
+
+.app-header a:hover {
+    text-decoration: underline;
+}
+
+.header-search {
+    position: relative;
+    flex: 0 0 320px;
+    max-width: 100%;
+}
+
+#search-input {
+    width: 100%;
+    padding: 0.45rem 0.75rem;
+    border: 1px solid #4b5563;
+    border-radius: 6px;
+    background: #111827;
+    color: #f9fafb;
+    font-size: 0.85rem;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+#search-input::placeholder {
+    color: #9ca3af;
+}
+
+#search-input:focus {
+    border-color: #fbbf24;
+}
+
+.search-results {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: #ffffff;
+    color: #1f2937;
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    max-height: 60vh;
+    overflow-y: auto;
+    z-index: 10000;
+    font-size: 0.85rem;
+}
+
+.search-results-status {
+    padding: 0.5rem 0.75rem;
+    color: #6b7280;
+    font-style: italic;
+}
+
+.search-result {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    border-bottom: 1px solid #f3f4f6;
+    line-height: 1.3;
+}
+
+.search-result:last-child {
+    border-bottom: none;
+}
+
+.search-result:hover,
+.search-result.focused {
+    background: #fef3c7;
+}
+
+.search-result .name {
+    font-weight: 600;
+}
+
+.search-result .sub {
+    color: #6b7280;
+    font-size: 0.75rem;
+    margin-top: 0.1rem;
+}
+
+main {
+    flex: 1 1 auto;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+#map {
+    flex: 1 1 auto;
+    width: 100%;
+    background: #e5e7eb;
+}
+
+.status-bar {
+    padding: 0.4rem 1rem;
+    background: #f3f4f6;
+    border-top: 1px solid #d1d5db;
+    font-size: 0.8rem;
+    color: #4b5563;
+    flex: 0 0 auto;
+}
+
+.status-bar:empty {
+    display: none;
+}
+
+.app-footer {
+    padding: 0.5rem 1rem;
+    background: #1f2937;
+    color: #d1d5db;
+    font-size: 0.75rem;
+    border-top: 1px solid #111827;
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+}
+
+.app-footer a {
+    color: #fbbf24;
+    text-decoration: none;
+}
+
+.app-footer a:hover {
+    text-decoration: underline;
+}
+
+/* ===== Marker (jen active overlay – běžné body kreslí WebGL přes leaflet.glify) ===== */
+.dp-marker-wrapper {
+    background: transparent !important;
+    border: none !important;
+}
+
+.dp-marker {
+    width: 36px;
+    height: 36px;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    border: 3px solid #ffffff;
+    box-shadow: 0 0 0 2px #1f2937,
+                0 4px 10px rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.dp-marker svg {
+    width: 16px;
+    height: 16px;
+    fill: #ffffff;
+    transform: rotate(45deg);
+}
+
+/* Glify canvas plovoucí nad mapou – ujistit se, že přijímá kurzor/click. */
+.leaflet-pane > canvas.glify-points {
+    cursor: pointer;
+}
+
+/* ===== Legenda kategorií ===== */
+.dp-legend {
+    background: #ffffff;
+    border-radius: 6px !important;
+    padding: 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    font-size: 0.75rem;
+    color: #1f2937;
+    max-width: 220px;
+    overflow: hidden;
+}
+
+.dp-legend .legend-toggle {
+    width: 100%;
+    border: none;
+    background: #1f2937;
+    color: #f9fafb;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.dp-legend .legend-toggle::after {
+    content: '−';
+    margin-left: 0.5rem;
+    font-weight: 700;
+}
+
+.dp-legend.collapsed .legend-toggle::after {
+    content: '+';
+}
+
+.dp-legend .legend-body {
+    padding: 0.5rem 0.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.dp-legend.collapsed .legend-body {
+    display: none;
+}
+
+.dp-legend .legend-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.dp-legend .legend-pin {
+    width: 18px;
+    height: 18px;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    border: 1.5px solid #ffffff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.dp-legend .legend-pin svg {
+    width: 10px;
+    height: 10px;
+    fill: #ffffff;
+    transform: rotate(45deg);
+}
+
+/* Na malé obrazovky default collapsed (mobile) */
+@media (max-width: 600px) {
+    .dp-legend {
+        max-width: 180px;
+    }
+}
+
+/* ===== Toast notification ===== */
+.toast {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translate(-50%, -10px);
+    background: #fef3c7;
+    color: #78350f;
+    border: 1px solid #fbbf24;
+    padding: 0.55rem 1.1rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+    z-index: 10000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    max-width: 90%;
+}
+
+.toast.visible {
+    opacity: 1;
+    transform: translate(-50%, 0);
+    pointer-events: auto;
+}
+
+/* ===== Detail panel (sidebar) ===== */
+.detail-panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 440px;
+    max-width: 100%;
+    height: 100%;
+    background: #ffffff;
+    box-shadow: -4px 0 18px rgba(0, 0, 0, 0.18);
+    transform: translateX(105%);
+    transition: transform 0.25s ease;
+    z-index: 1000;
+    overflow-y: auto;
+}
+
+.detail-panel.open {
+    transform: translateX(0);
+}
+
+.detail-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 50%;
+    font-size: 1.4rem;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 2;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+    color: #1f2937;
+}
+
+.detail-close:hover {
+    background: #fef3c7;
+}
+
+.detail-content {
+    padding: 1rem 1.25rem 2rem;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: #1f2937;
+}
+
+.detail-content h2 {
+    margin: 0 0 0.35rem;
+    font-size: 1.15rem;
+    padding-right: 2.5rem; /* prostor pro close × */
+    color: #1f2937;
+}
+
+.detail-content .detail-meta {
+    color: #6b7280;
+    font-size: 0.8rem;
+    margin: 0 0 1rem;
+    line-height: 1.4;
+}
+
+.detail-content .detail-meta strong {
+    color: #1f2937;
+}
+
+.detail-content .detail-tags {
+    margin: 0 0 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.detail-content .detail-tag {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    line-height: 1.4;
+    background: #e5e7eb;
+    color: #1f2937;
+    border: 1px solid #d1d5db;
+}
+
+.detail-content .detail-tag.detail-tag-warn {
+    background: #fee2e2;
+    color: #991b1b;
+    border-color: #fca5a5;
+}
+
+.detail-content .gallery-hero {
+    margin-bottom: 0.4rem;
+    aspect-ratio: 4 / 3;
+    background: #e5e7eb;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.detail-content .gallery-hero img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.detail-content .gallery-thumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 0 0 1rem;
+}
+
+.detail-content .gallery-thumbs img {
+    width: 64px;
+    height: 48px;
+    object-fit: cover;
+    border-radius: 3px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    background: #e5e7eb;
+}
+
+.detail-content .gallery-thumbs img:hover {
+    border-color: #fbbf24;
+}
+
+.detail-content .gallery-thumbs img.active {
+    border-color: #d97706;
+}
+
+.detail-content .detail-popis {
+    margin: 0 0 0.7rem;
+}
+
+.detail-content .detail-metaextra {
+    margin-top: 1.25rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid #e5e7eb;
+    font-size: 0.75rem;
+    color: #6b7280;
+}
+
+.detail-content .detail-metaextra div {
+    margin-bottom: 0.25rem;
+}
+
+.detail-content .detail-metaextra strong {
+    color: #4b5563;
+}
+
+.detail-content .detail-metaextra a {
+    color: #d97706;
+    text-decoration: none;
+}
+
+.detail-content .detail-metaextra a:hover {
+    text-decoration: underline;
+}
+
+.detail-content .detail-links {
+    margin-top: 1rem;
+}
+
+.detail-content .detail-links a {
+    color: #d97706;
+    font-weight: 500;
+    text-decoration: none;
+    font-size: 0.85rem;
+}
+
+.detail-content .detail-links a:hover {
+    text-decoration: underline;
+}
+
+.detail-content .detail-popis-body {
+    margin: 0.75rem 0;
+    line-height: 1.55;
+    color: #2a2a2a;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.detail-content .detail-popis-body a {
+    color: #1a5490;
+    text-decoration: underline;
+}
+
+.detail-content .detail-popis-body em {
+    font-style: italic;
+}
+
+.detail-content .detail-popis-body strong {
+    font-weight: 600;
+}
+
+.detail-content .loading {
+    color: #6b7280;
+    font-style: italic;
+}
+
+@media (max-width: 600px) {
+    .detail-panel {
+        width: 100%;
+    }
+}
+
+/* Legacy popup style (zachováno pro případ že popup ještě někde vyskočí) */
+.popup-pamatka {
+    font-size: 0.85rem;
+    line-height: 1.4;
+    max-width: 320px;
+}
+
+.popup-pamatka h3 {
+    margin: 0 0 0.4rem;
+    font-size: 1rem;
+    color: #1f2937;
+}
+
+.popup-pamatka .meta {
+    color: #6b7280;
+    font-size: 0.75rem;
+    margin: 0 0 0.5rem;
+}
+
+.popup-pamatka .meta strong {
+    color: #1f2937;
+    font-weight: 600;
+}
+
+.popup-pamatka .thumb {
+    margin: 0 0 0.5rem;
+}
+
+.popup-pamatka .thumb img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    background: #e5e7eb;
+}
+
+.popup-pamatka .description {
+    margin: 0 0 0.5rem;
+}
+
+.popup-pamatka .links {
+    margin: 0.25rem 0 0;
+}
+
+.popup-pamatka .source-link {
+    display: inline-block;
+    font-size: 0.75rem;
+    color: #d97706;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.popup-pamatka .source-link:hover {
+    text-decoration: underline;
+}
+
+.leaflet-popup-content {
+    margin: 0.75rem 1rem;
+}
