@@ -93,6 +93,13 @@ echo "─── příprava worktree: $WORKTREE ───"
 cleanup() {
     cd "$REPO_ROOT"
     git worktree remove --force "$WORKTREE" 2>/dev/null || rm -rf "$WORKTREE"
+    # Smazat orphan deploy branch i při selhání (push/commit fail). Bez toho
+    # se gh-pages-deploy-<ts> branche hromadí po každém neúspěšném běhu.
+    # ORPHAN_BRANCH guard: skript může spadnout dřív, než se proměnná nastaví.
+    if [[ -n "${ORPHAN_BRANCH:-}" ]]; then
+        git branch -D "$ORPHAN_BRANCH" >/dev/null 2>&1 || true
+    fi
+    git worktree prune 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -163,9 +170,8 @@ git commit -q -m "Deploy $(date -u +%Y-%m-%dT%H:%M:%SZ)" \
 
 git push -f origin "HEAD:gh-pages"
 
-# Smazat lokální orphan branch (worktree cleanup ho jinak nesmaže)
+# Orphan branch + worktree uklidí trap cleanup (EXIT) — i při selhání pushe.
 cd "$REPO_ROOT"
-git branch -D "$ORPHAN_BRANCH" >/dev/null 2>&1 || true
 
 # ── 5. Hotovo ─────────────────────────────────────────────────────────
 echo
