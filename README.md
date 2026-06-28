@@ -61,6 +61,13 @@ Pro deploy na `gh-pages` po commitu: `bash scripts/deploy.sh`.
 
 Plně funkční mapa s ~81 000 reálnými záznamy památek importovanými z databáze původního webu. Detail panel s fotogalerií, fulltextové vyhledávání, hluboké odkazy na konkrétní památku (`/pamatka/<nid>-<slug>/`). Aktivní vývoj – viz [otevřené issues](https://github.com/kratocz/drobne-pamatky/issues).
 
+## Analytika
+
+Web používá [Cloudflare Web Analytics](https://www.cloudflare.com/web-analytics/) — cookie-less,
+GDPR-friendly, bez consent banneru. Beacon token se vkládá při buildu z env proměnné
+`CF_BEACON_TOKEN` (lokálně `.env`, v CI GitHub variable). Při forku bez vlastního tokenu se
+analytika prostě nevloží — repo funguje out-of-box.
+
 ## Plánovaná vylepšení a hlášení chyb
 
 Úkoly, nápady a bugy jsou vedeny jako [GitHub Issues](https://github.com/kratocz/drobne-pamatky/issues). Pokud narazíte na problém, máte návrh na vylepšení nebo se chcete na něčem podílet, založte (nebo si vyberte) issue tam – diskuse probíhá u konkrétního ticketu.

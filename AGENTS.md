@@ -127,6 +127,23 @@ Ne `sites/default/files/<rok>/...` (běžný Drupal config), ale jen `files/<rok
 
 V git historii **byl** kdysi hardcoded `password="xnet"` — heslo smazáno přes `git-filter-repo` a repo přepnuto na private. Pre-commit hook `gitleaks` (globální, `core.hooksPath`) předchází opakování.
 
+### Cloudflare Web Analytics beacon (issue #14)
+
+Beacon se vkládá do 3 vstupních bodů přes placeholder `<!-- CF_BEACON -->`:
+- `index.html`, `404.html` — nahradí `scripts/inject-beacon.sh` v obou deploy cestách
+  (`deploy.sh` z `.env`, workflow z `vars.CF_BEACON_TOKEN`)
+- `pamatka/<nid>/index.html` — vloží `build_static_pages.py` při generování (Jinja `{{ cf_beacon }}`)
+
+Token (`CF_BEACON_TOKEN`, 32-hex) je **public-by-design** (view-source ho ukáže), vázaný na hostname.
+Lokálně v `.env`, v CI jako GitHub **variable** (ne secret) `vars.CF_BEACON_TOKEN`. Bez tokenu se
+placeholder smaže — **fork-friendly**, žádný beacon, žádná chyba.
+
+`404.html` má beacon **bez `defer`** (kvůli okamžitému `location.replace()`); helper to pozná
+podle názvu souboru. SRI/`integrity` záměrně vynechán — `beacon.min.js` je mutable CDN URL.
+
+Po klonu fork-owner nastaví vlastní token (nebo nechá prázdný). Po deploy ověřit:
+`curl -s https://kratocz.github.io/drobne-pamatky/ | grep cloudflareinsights`.
+
 ## Struktura
 
 ```
