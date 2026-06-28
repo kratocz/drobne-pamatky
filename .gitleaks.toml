@@ -1,0 +1,26 @@
+# gitleaks konfigurace pro tento repo.
+#
+# Rozšiřuje default gitleaks pravidla (NEnahrazuje je) — `useDefault = true`
+# zachová detekci AWS klíčů, GitHub tokenů, DB hesel atd. Přidáváme jen
+# cílený allowlist pro Cloudflare Web Analytics beacon token.
+#
+# Schéma: gitleaks 8.x. Hook volá `gitleaks git --staged ...` bez --config,
+# takže tento soubor se načte automaticky z kořene repa.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Cloudflare Web Analytics beacon token je public-by-design (issue #14)"
+# Token se objeví v atributu data-cf-beacon='{"token": "<32-hex>"}' ve všech
+# vygenerovaných HTML (index.html, 404.html, 82k pamatka/**/index.html).
+# Není to secret — je vázaný na hostname kratocz.github.io, na cizí doméně
+# Cloudflare data nezpracuje, a je viditelný ve view-source na produkci.
+#
+# regexTarget = "line": regex se porovnává proti CELÉMU řádku nálezu, ne jen
+# proti secretu. Díky tomu allowlistujeme token JEN když je v data-cf-beacon
+# kontextu — stejný 32-hex string kdekoli jinde se dál detekuje.
+regexTarget = "line"
+regexes = [
+    '''data-cf-beacon=.{0,40}[0-9a-f]{32}''',
+]
