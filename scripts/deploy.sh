@@ -127,6 +127,16 @@ cp "$REPO_ROOT/index.html" .
 cp "$REPO_ROOT/404.html" .
 cp "$REPO_ROOT/LICENSE" .
 
+# Cloudflare Web Analytics beacon (#14) — z .env CF_BEACON_TOKEN.
+# Token public-by-design; bez něj se placeholder smaže (fork-friendly).
+# pamatka/ už má beacon z build_static_pages.py (placeholder nahrazen) →
+# grep guard v inject-beacon.sh je přeskočí, reálně zpracuje jen index/404.
+if [[ -f "$REPO_ROOT/.env" ]]; then
+    # shellcheck disable=SC1091
+    set -a; source "$REPO_ROOT/.env"; set +a
+fi
+bash "$REPO_ROOT/scripts/inject-beacon.sh" . "${CF_BEACON_TOKEN:-}"
+
 # Deploy-specific .gitignore (jen macOS junk – data jsou jasně chtěná)
 cat > .gitignore <<'EOF'
 .DS_Store
