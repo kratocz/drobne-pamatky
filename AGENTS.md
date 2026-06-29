@@ -26,7 +26,7 @@ Dlouhodobá vize: stát se veřejným frontendem původního webu – data perio
 
 - **Run lokálně:** `python3 -m http.server 8000` nebo `npx serve .`, pak otevřít `http://localhost:8000`
 - **Build:** žádný (čistě statické soubory)
-- **Test:** lightweight Python skripty v `scripts/snapshot/` — `uv run python test_sanitize.py` a `uv run python test_manifest_diff.py`.
+- **Test:** lightweight skripty v `scripts/snapshot/` (bez frameworku) — `uv run python test_sanitize.py`, `uv run python test_manifest_diff.py`, `uv run python test_build_static_pages.py` a `bash test_inject_beacon.sh`.
 
 ## Sync ze zdroje (Drupal 6 → data/)
 
@@ -42,11 +42,12 @@ Co skript dělá:
 2. SSH tunel `root@drobnepamatky.cz:3306 → localhost:13306` (auto-cleanup)
 3. `export.py` → JSON/GeoJSON do `scripts/snapshot/out/` + `files-manifest.json`
 4. `build_search_index.js` → search index
-5. `sync_manifest_diff.py` porovná `out/files-manifest.json` s `data/thumbs-manifest.json`
-6. `rsync` jen chybějících/změněných JPG z VPS do tmp/
-7. `build_thumbnails.py --only` vygeneruje nové thumbs (sips + avifenc, macOS only)
-8. Smaže obsolete thumbs ze `data/thumbs/`
-9. Zkopíruje `out/*` + nový thumbs-manifest do `data/`
+5. `build_static_pages.py` → per-pamatka HTML do `out/pamatka/<nid>-<slug>/` + `sitemap*.xml` + `robots.txt` (čte `CF_BEACON_TOKEN` z env → vloží beacon)
+6. `sync_manifest_diff.py` porovná `out/files-manifest.json` s `data/thumbs-manifest.json`
+7. `rsync` jen chybějících/změněných JPG z VPS do tmp/
+8. `build_thumbnails.py --only` vygeneruje nové thumbs (sips + avifenc, macOS only)
+9. Smaže obsolete thumbs ze `data/thumbs/`
+10. Zkopíruje `out/*` + nový thumbs-manifest do `data/` a `pamatka/` + `sitemap*.xml` + `robots.txt` do repo rootu
 
 **Skript NEcommituje** — po doběhnutí zkontroluj `git diff data/` a `git status data/`, pak commitni ručně.
 
@@ -56,7 +57,7 @@ Pro nasazení změn do `gh-pages` po commitu: `bash scripts/deploy.sh`.
 
 ## SEO + Search Console (per-pamatka HTML, issue #5)
 
-Statické per-pamatka HTML stránky (`/pamatka/<nid>-<slug>/index.html` × 82k) generuje `scripts/snapshot/build_static_pages.py` v rámci `sync-from-source.sh` (krok `[2b/8]`). Šablony v `scripts/snapshot/templates/`, šable `assets/page.css`. Sitemap rozdělen po 14 krajích + master index, povolen v `robots.txt`.
+Statické per-pamatka HTML stránky (`/pamatka/<nid>-<slug>/index.html` × 82k) generuje `scripts/snapshot/build_static_pages.py` v rámci `sync-from-source.sh` (krok `[2b/8]`). Šablony v `scripts/snapshot/templates/`, šable `assets/page.css`. Sitemap rozdělen po 15 krajích/skupinách (14 krajů + `ostatni`) + master index, povolen v `robots.txt`.
 
 **URL struktura na gh-pages:**
 - `https://kratocz.github.io/drobne-pamatky/pamatka/<nid>-<slug>/` — statická HTML pro crawlery
@@ -132,7 +133,7 @@ V git historii **byl** kdysi hardcoded `password="xnet"` — heslo smazáno pře
 Beacon se vkládá do 3 vstupních bodů přes placeholder `<!-- CF_BEACON -->`:
 - `index.html`, `404.html` — nahradí `scripts/inject-beacon.sh` v obou deploy cestách
   (`deploy.sh` z `.env`, workflow z `vars.CF_BEACON_TOKEN`)
-- `pamatka/<nid>/index.html` — vloží `build_static_pages.py` při generování (Jinja `{{ cf_beacon }}`)
+- `pamatka/<nid>-<slug>/index.html` — vloží `build_static_pages.py` při generování (Jinja `{{ cf_beacon|safe }}`)
 
 Token (`CF_BEACON_TOKEN`, 32-hex) je **public-by-design** (view-source ho ukáže), vázaný na hostname.
 Lokálně v `.env`, v CI jako GitHub **variable** (ne secret) `vars.CF_BEACON_TOKEN`. Bez tokenu se
@@ -144,14 +145,34 @@ podle názvu souboru. SRI/`integrity` záměrně vynechán — `beacon.min.js` j
 Po klonu fork-owner nastaví vlastní token (nebo nechá prázdný). Po deploy ověřit:
 `curl -s https://kratocz.github.io/drobne-pamatky/ | grep cloudflareinsights`.
 
+**gitleaks vs. public token (deploy gotcha):** `gitleaks` hlásí CF token v ~82k
+vygenerovaných HTML jako `generic-api-key` a blokuje `deploy.sh` commit do gh-pages
+(i workflow). Token je public-by-design, tak je v `.gitleaks.toml` allowlist cílený JEN
+na `data-cf-beacon` kontext (`regexTarget = "line"` — stejný 32-hex jinde se dál detekuje;
+`[extend] useDefault = true` zachová ostatní pravidla). Druhá vrstva: `deploy.sh` musí
+`.gitleaks.toml` **zkopírovat do gh-pages worktree** (a gitignorovat, ať nejde na produkci),
+protože pre-commit hook (`core.hooksPath`) hledá config v kořeni worktree, ne hlavního repa.
+
+### `deploy.sh` orphan branch cleanup
+
+`deploy.sh` dělá deploy přes dočasný orphan branch `gh-pages-deploy-<ts>` (force-push do
+gh-pages, žádná historie = stabilní repo size). Branch + worktree se uklízí v `cleanup()`
+trapu na `EXIT` — tedy i když push/commit **selže** (např. gitleaks blok). Bez toho se
+orphan branche hromadily po každém neúspěšném běhu (guard `${ORPHAN_BRANCH:-}` ošetří pád
+před definicí proměnné).
+
 ## Struktura
 
 ```
 .
-├── index.html          # vstupní stránka s mapou
+├── index.html          # vstupní stránka s mapou (SPA)
+├── 404.html            # GitHub Pages SPA redirect (beacon bez defer)
 ├── src/                # JS moduly (vanilla JS, bez bundleru)
 ├── assets/             # CSS, statické soubory
-├── data/               # GeoJSON s body památek
+├── data/               # GeoJSON, lookups, search index, details/, thumbs/
+├── scripts/            # deploy.sh, sync-from-source.sh, inject-beacon.sh, snapshot/
+├── .env.example        # šablona env (DB credentials, CF_BEACON_TOKEN)
+├── .gitleaks.toml      # secret-scan allowlist (CF beacon token je public)
 └── LICENSE             # MIT (kód); data dle licence drobnepamatky.cz
 ```
 

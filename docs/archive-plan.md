@@ -52,7 +52,7 @@ Když zmizí kterákoli z vrstev, ostatní dvě stačí na rekonstrukci celku (p
 **Obsah:**
 - `index.html`, `src/`, `assets/` – aplikace (jednotky MB)
 - `data/pamatky.geojson` – master GeoJSON s body památek (~5 MB gzip, viz [Data delivery](#l1--data-delivery))
-- `data/details/<nid>.json` – lazy-loaded detail per památka (82 k souborů, ~2-3 KB each)
+- `data/details/<kraj_tid>.json` – lazy-loaded detail bucket per kraj (15 souborů, ~360 KB gz / kraj; bucketing strategie viz [L1 Data delivery](#l1--data-delivery))
 - `data/lookups.json` – ID → name pro druhy a obce (~200 KB gzip)
 - `data/search-index.json` – pre-built search index (~2 MB gzip)
 - `data/thumbs/<rok>/<jméno>.avif` – náhledy fotek (max 250 px na delší straně, AVIF q50)
@@ -96,7 +96,7 @@ Když zmizí kterákoli z vrstev, ostatní dvě stačí na rekonstrukci celku (p
 
 **Service Worker** (PWA pattern) cacheuje agresivně:
 - `pamatky.geojson` + `lookups.json` + `search-index.json` na 24 h (stale-while-revalidate)
-- `details/<nid>.json` forever (immutable + versioning přes hash v názvu nebo query param `?v=YYYY-MM-DD`)
+- `details/<kraj_tid>.json` forever (immutable + versioning přes hash v názvu nebo query param `?v=YYYY-MM-DD`)
 - `thumbs/**/*.avif` forever (po vygenerování se nemění do dalšího ročního snapshotu)
 
 **Škálovací plán B – Cloudflare před GH Pages** (free tier, unlimited bandwidth):
@@ -289,7 +289,7 @@ Předpokladem je SSH přístup ke starému serveru + lokálně vytvořený `.env
 └── 8. PR do tohoto repa: update README + data/ s novým concept DOI
 ```
 
-Skripty pro kroky 3–7 budou v `scripts/snapshot/` (zatím neexistuje, vytvoří se před prvním snapshotem). Doporučená implementace v Pythonu (`requests` + `tqdm` + `subprocess` pro tar/zstd) kvůli robustnosti vs bash.
+Skripty pro kroky 3–7 jsou v `scripts/snapshot/` (implementováno). Implementace v Pythonu (`export.py`, `build_*.py` přes `uv`) + `build_search_index.js` (Node) kvůli robustnosti vs bash.
 
 ## Metadata a licence
 
